@@ -396,3 +396,8 @@ a {
   justify-content: flex-end;
   gap: 6px;
 }
+
+/* The hidden attribute must win over any display rule below (buttons are inline-flex). */
+[hidden] {
+  display: none !important;
+}
