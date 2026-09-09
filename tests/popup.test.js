@@ -188,6 +188,21 @@ describe('Also unfollow my connections', () => {
     });
   });
 
+  it('says so rather than "0" when LinkedIn did not give a total', () => {
+    serveWorker({});
+    mount(container);
+
+    for (const listener of chrome.__mock.listeners.onMessage) {
+      listener(
+        { type: MESSAGES.PROGRESS, phase: PHASE.SCANNING, scanned: 50, followersTotal: null },
+        {},
+        () => {},
+      );
+    }
+
+    expect($('progress').textContent).toBe('Scanning followers… 50 of —');
+  });
+
   it('shows the scan as it goes', () => {
     serveWorker({});
     mount(container);

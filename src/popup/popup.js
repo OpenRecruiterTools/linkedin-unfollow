@@ -96,7 +96,7 @@ const accounts = (n) => `${fmtNumber(n)} account${n === 1 ? '' : 's'}`;
 export function connectionsLine(followers) {
   if (!followers) return '';
   const still = Number(followers.stillFollowing) || 0;
-  const total = Number(followers.total);
+  const total = followers.total === null ? NaN : Number(followers.total);
   const of = Number.isFinite(total) ? ` of your ${fmtNumber(total)} followers` : '';
   if (!still) return ` Nobody${of} is followed on top of that.`;
   return ` Another ${fmtNumber(still)}${of} — your connections — are followed too.`;
@@ -364,9 +364,8 @@ export function unfollowScreen() {
   const onProgress = (message) => {
     if (message && message.phase === PHASE.SCANNING) {
       const scanned = Number(message.scanned) || 0;
-      setProgress(
-        `Scanning followers… ${fmtNumber(scanned)} of ${fmtNumber(message.followersTotal)}`,
-      );
+      const outOf = message.followersTotal === null ? NaN : message.followersTotal;
+      setProgress(`Scanning followers… ${fmtNumber(scanned)} of ${fmtNumber(outOf)}`);
       return;
     }
     const done = Number(message && message.unfollowed) || 0;
