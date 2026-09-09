@@ -63,22 +63,54 @@ third one.
    really is unfollowed on LinkedIn. *Then* set it to 25, or 500, or clear the
    box to work through everyone.
 
+Under the box are two tick boxes, both off to begin with: **also unfollow my
+connections**, which is the one that actually silences the feed (see below), and
+**fast**, which sends three at a time.
+
 While it runs there is a progress line and a **Stop** button. Stop ends the run
 after the person it is on.
 
 ---
 
+## Connections are followed too
+
+**Emptying the Following list to zero does not silence your feed.**
+
+LinkedIn makes you follow everybody you connect with, and those connections
+never appear on the "Following" page — which is the list LinkedIn shows you, and
+the list this extension reads. Verified on a real account: with that list down to
+0, the feed was still full of posts from connections.
+
+The state is visible on your **followers** list instead, where every row comes
+back with its own `following: true` or `false`. That is what the tick box under
+"Unfollow up to" turns on:
+
+> **Also unfollow my connections (scans your followers list; slower)**
+
+With it ticked, a run works through the Following list exactly as before, and
+then reads your followers list fifty at a time and unfollows the ones still
+marked as followed. Nobody is disconnected: you stay connected, you just stop
+seeing the posts.
+
+It is slower because it is far more reading. 9,479 followers is 190 requests
+before a single unfollow is sent, so "Check count" with the box ticked takes a
+couple of minutes, and the progress line reads "Scanning followers… N of M"
+while it works.
+
+---
+
 ## How it works
 
-It makes the same two requests linkedin.com's own "Following" page makes, from
-your own signed-in browser:
+It makes the same requests linkedin.com's own pages make, from your own
+signed-in browser:
 
 | | |
 |---|---|
 | **List** | `GET /voyager/api/graphql?…MYNETWORK_CURATION_HUB…PEOPLE_FOLLOW…` — the total comes straight from LinkedIn's `totalResultCount`, so "you follow 735 people" is the real number, not a count of rows on screen. |
+| **Followers list** | `GET /voyager/api/graphql?…MYNETWORK_CURATION_HUB…FOLLOWERS…` — the same query with `resultType FOLLOWERS`, fifty rows at a time. Read only when "also unfollow my connections" is ticked. Each row comes back with its own following state, which is the only place your connections' state appears. |
 | **Unfollow** | `POST /voyager/api/feed/dash/followingStates/urn:li:fsd_followingState:urn:li:fsd_profile:<id>` with `{"patch":{"$set":{"following":false}}}` — one person, one request. |
 
-Around those two calls:
+Around those calls:
 
 - **Paced like a human.** One person every 0.8–1.6 seconds, randomised, one
   request at a time. Never a burst.
@@ -95,6 +127,16 @@ Around those two calls:
 - **Nothing is bypassed.** The CSRF token is your own `JSESSIONID` cookie, read
   through Chrome's `cookies` API. No security measure is defeated, worked around
   or forged; if you are not signed in, it simply fails.
+
+**Fast mode.** Ticking "Fast (3 at a time — more likely to trip LinkedIn's rate
+limit)" runs three streams over the same list instead of one, each leaving
+0.5–0.9 seconds between its own requests: roughly four unfollows a second rather
+than one. The three share one cursor, one list of people already handled and one
+pool of limit slots, so they cannot between them overshoot the limit you typed
+or send anyone twice, and a 429, 403 or 401 on any one of them ends the run for
+all three — Stop and the progress line work across them as usual. Careful, one
+at a time, is the default, and it is the one to use: fast is several times
+quicker and correspondingly more likely to be the thing LinkedIn notices.
 
 If LinkedIn rotates the hashed query id the list call depends on, there is a
 second engine that clicks the Following page instead, exactly as a person would.
@@ -116,6 +158,12 @@ cookie, at a fraction of the rate a person clicking could manage. It does not
 defeat rate limits, solve challenges, rotate identities, or touch anyone else's
 account — and when LinkedIn puts up a challenge it stops rather than working
 around it.
+
+**It said 0 following but I still see posts from connections.**
+That is what the "also unfollow my connections" tick box is for. Connections are
+followed automatically when you connect and never appear in LinkedIn's Following
+list, so emptying that list leaves every one of them behind. Tick the box and run
+it again — it reads your followers list, where their state actually shows up.
 
 **Will I lose my connections?**
 No. Unfollowing is not disconnecting. Your connections stay connections; you
@@ -173,18 +221,18 @@ you are running, which you can read — with you.
 npm install
 npm test      # vitest, with an in-memory chrome mock — nothing touches LinkedIn
 npm run lint  # eslint
-npm run zip   # dist/linkedin-unfollow-v1.0.0.zip
+npm run zip   # dist/linkedin-unfollow-v1.1.0.zip
 ```
 
 There is no build step. `src/` is what ships.
 
 | Path | What it is |
 |---|---|
-| `src/linkedin.js` | The two API calls, and the parser for the list response. |
-| `src/background.js` | The engine: pacing, limits, stop conditions, message router. |
+| `src/linkedin.js` | The three API calls, and the parsers for the two list responses. |
+| `src/background.js` | The engine: two sources, one to three streams, pacing, limits, stop conditions, message router. |
 | `src/dom-fallback.js` | The click-the-page engine, kept for when the query id rotates. |
 | `src/popup/` | The one screen. |
-| `tests/` | 79 tests. Every fixture is invented; no real person appears in them. |
+| `tests/` | 114 tests. Every fixture is invented; no real person appears in them. |
 
 ---
 
