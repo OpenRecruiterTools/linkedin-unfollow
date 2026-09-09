@@ -8,10 +8,18 @@
  * red button, which says out loud how many it is about to unfollow and that
  * there is no undo. Once a run is going, Stop ends it after the person it is
  * on.
+ *
+ * The two tick boxes are both off by default, and both say what they cost:
+ * "also unfollow my connections" adds a scan of your followers list, which is
+ * where the state of your connections actually lives, and "fast" runs three
+ * requests at a time instead of one.
  */
 
 import {
   MESSAGES,
+  PHASE,
+  SCOPE,
+  SPEED,
   STOPPED,
   UNFOLLOW_LIMIT_DEFAULT,
   UNFOLLOW_LIMIT_MAX,
@@ -22,6 +30,8 @@ import { el, render, fmtNumber } from '../ui/dom.js';
 import {
   busyButton,
   card,
+  checkField,
+  checkbox,
   confirmDialog,
   empty,
   errorLine,
@@ -37,6 +47,14 @@ export const TOOLKIT_URL = 'https://github.com/OpenRecruiterTools/linkedin-toolk
 /** Who built it. */
 export const AUTHOR_URL = 'https://www.linkedin.com/in/dominic-g-6a9a5680/';
 export const FORMATIX_URL = 'https://formatix.ai';
+
+/** The finding this whole second source exists for, in one line. */
+export const CONNECTIONS_LABEL = 'Also unfollow my connections (scans your followers list; slower)';
+export const CONNECTIONS_HINT =
+  'Connections are followed automatically and do not appear in LinkedIn’s Following list.';
+
+export const FAST_LABEL = 'Fast (3 at a time — more likely to trip LinkedIn’s rate limit)';
+export const FAST_HINT = 'Careful, one at a time, is the default and the one to use.';
 
 export const UNFOLLOW_WARNING =
   'Sends the same unfollow request the LinkedIn page sends, one person at a time, ' +
@@ -68,6 +86,21 @@ export async function call(type, params = {}) {
 /* ================================================================== */
 
 const accounts = (n) => `${fmtNumber(n)} account${n === 1 ? '' : 's'}`;
+
+/**
+ * What the followers scan found, as a sentence — the number the Following list
+ * does not show you.
+ *
+ * @param {{total: number|null, stillFollowing: number}} [followers]
+ */
+export function connectionsLine(followers) {
+  if (!followers) return '';
+  const still = Number(followers.stillFollowing) || 0;
+  const total = Number(followers.total);
+  const of = Number.isFinite(total) ? ` of your ${fmtNumber(total)} followers` : '';
+  if (!still) return ` Nobody${of} is followed on top of that.`;
+  return ` Another ${fmtNumber(still)}${of} — your connections — are followed too.`;
+}
 
 /** A plain list of names with a heading, or an empty state. */
 export function nameList(names, heading) {
@@ -128,9 +161,15 @@ export function unfollowScreen() {
     return n;
   };
 
+  const everyoneBox = checkbox({ 'data-testid': 'everyone' });
+  const fastBox = checkbox({ 'data-testid': 'fast' });
+
+  /** Nothing is sent unless it was ticked, so an untouched popup behaves as before. */
+  const scopeParams = () => (everyoneBox.checked ? { scope: SCOPE.EVERYONE } : {});
+
   const paramsFor = (extra) => {
     const limit = readLimit();
-    return limit === null ? { ...extra } : { limit, ...extra };
+    return { ...(limit === null ? {} : { limit }), ...scopeParams(), ...extra };
   };
 
   /** Stop only exists while there is something to stop. */
@@ -159,11 +198,17 @@ export function unfollowScreen() {
     'Check count',
     async () => {
       setProgress('');
-      const data = await call(MESSAGES.COUNT);
-      const total = Number(data.count) || 0;
-      const sample = Array.isArray(data.sample) ? data.sample : [];
-      status.set(`You follow ${accounts(total)}.`);
-      render(results, sample.length ? nameList(sample, 'First few:') : null);
+      const everyone = everyoneBox.checked;
+      if (everyone) status.set('Reading your followers list — this takes a couple of minutes…');
+      try {
+        const data = await call(MESSAGES.COUNT, scopeParams());
+        const total = Number(data.count) || 0;
+        const sample = Array.isArray(data.sample) ? data.sample : [];
+        status.set(`You follow ${accounts(total)}.${connectionsLine(data.followers)}`);
+        render(results, sample.length ? nameList(sample, 'First few:') : null);
+      } finally {
+        if (everyone) setProgress('');
+      }
     },
     {
       variant: 'ghost',
@@ -178,15 +223,23 @@ export function unfollowScreen() {
     async () => {
       setProgress('');
       const params = paramsFor({});
-      status.set('Reading your following list — nothing is being unfollowed…');
-      const data = await call(MESSAGES.PREVIEW, params);
-      const names = (Array.isArray(data.names) ? data.names : []).slice(0, UNFOLLOW_SAMPLE_MAX);
       status.set(
-        names.length
-          ? 'Preview only — nothing was unfollowed. These would be:'
-          : 'Preview only — found nobody to unfollow.',
+        params.scope === SCOPE.EVERYONE
+          ? 'Reading your following and followers lists — nothing is being unfollowed…'
+          : 'Reading your following list — nothing is being unfollowed…',
       );
-      render(results, nameList(names, 'Would unfollow:'));
+      try {
+        const data = await call(MESSAGES.PREVIEW, params);
+        const names = (Array.isArray(data.names) ? data.names : []).slice(0, UNFOLLOW_SAMPLE_MAX);
+        status.set(
+          names.length
+            ? 'Preview only — nothing was unfollowed. These would be:'
+            : 'Preview only — found nobody to unfollow.',
+        );
+        render(results, nameList(names, 'Would unfollow:'));
+      } finally {
+        setProgress('');
+      }
     },
     {
       variant: 'ghost',
@@ -199,13 +252,18 @@ export function unfollowScreen() {
   const unfollowBtn = busyButton(
     'Unfollow',
     async () => {
-      const params = paramsFor({});
+      const params = paramsFor(fastBox.checked ? { speed: SPEED.FAST } : {});
       const limit = params.limit === undefined ? null : params.limit;
       const target = limit === null ? 'everyone you follow' : accounts(limit);
+      const alsoConnections =
+        params.scope === SCOPE.EVERYONE
+          ? ' Your connections are included, and they do not come back on their own: you stay ' +
+            'connected, but anyone you want in your feed has to be followed again by hand.'
+          : '';
 
       const sure = await confirmDialog({
         title: limit === null ? 'Unfollow everyone?' : `Unfollow up to ${fmtNumber(limit)}?`,
-        message: `This will unfollow ${target}. It cannot be undone. ${UNFOLLOW_WARNING}`,
+        message: `This will unfollow ${target}. It cannot be undone.${alsoConnections} ${UNFOLLOW_WARNING}`,
         confirmLabel: limit === null ? 'Unfollow all' : `Unfollow ${fmtNumber(limit)}`,
         danger: true,
       });
@@ -263,6 +321,8 @@ export function unfollowScreen() {
     { hint: UNFOLLOW_WARNING },
     row(countBtn, previewBtn),
     field('Unfollow up to', limitInput, 'Leave empty to work through everyone.'),
+    checkField(CONNECTIONS_LABEL, everyoneBox, CONNECTIONS_HINT),
+    checkField(FAST_LABEL, fastBox, FAST_HINT),
     row(unfollowBtn, stopBtn),
     status,
     progress,
@@ -297,8 +357,18 @@ export function unfollowScreen() {
     ),
   );
 
-  /** The worker's heartbeat, every ten people, if the popup is still open. */
+  /**
+   * The worker's heartbeat: every ten people while unfollowing, and every
+   * followers page while scanning, if the popup is still open.
+   */
   const onProgress = (message) => {
+    if (message && message.phase === PHASE.SCANNING) {
+      const scanned = Number(message.scanned) || 0;
+      setProgress(
+        `Scanning followers… ${fmtNumber(scanned)} of ${fmtNumber(message.followersTotal)}`,
+      );
+      return;
+    }
     const done = Number(message && message.unfollowed) || 0;
     const total = Number(message && message.total);
     const left = Number.isFinite(total) ? ` — about ${fmtNumber(Math.max(0, total))} to go` : '';

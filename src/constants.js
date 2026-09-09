@@ -17,6 +17,40 @@ export const MESSAGES = Object.freeze({
   PROGRESS: 'progress',
 });
 
+/**
+ * Which list a run works through.
+ *
+ * `following` is LinkedIn's own "Following" list, and it is the default because
+ * it is what every earlier version did. `everyone` adds a second pass over your
+ * *followers*, because connections are followed automatically when you connect
+ * and never appear on the Following list — see `linkedin.js`.
+ */
+export const SCOPE = Object.freeze({
+  FOLLOWING: 'following',
+  EVERYONE: 'everyone',
+});
+
+/**
+ * How hard a run pushes.
+ *
+ * `careful` is one request at a time with a 0.8–1.6 s gap — the default, and
+ * the one to use. `fast` runs three streams over the same list at 0.5–0.9 s
+ * each, so about four unfollows a second: several times quicker, and several
+ * times more likely to be the thing LinkedIn rate-limits.
+ */
+export const SPEED = Object.freeze({
+  CAREFUL: 'careful',
+  FAST: 'fast',
+});
+
+/** How many streams `fast` runs. Three, and not a knob. */
+export const FAST_STREAMS = 3;
+
+/** The one phase a progress message ever names: the followers scan. */
+export const PHASE = Object.freeze({
+  SCANNING: 'scanning',
+});
+
 /** You can ask for one. That is the run you should try first. */
 export const UNFOLLOW_LIMIT_MIN = 1;
 
@@ -39,6 +73,30 @@ export const UNFOLLOW_SAMPLE_MAX = 10;
 export const PACING = Object.freeze({
   minDelayMs: 800,
   maxDelayMs: 1600,
+});
+
+/**
+ * One request every 0.5–0.9 seconds *per stream*, in `fast`.
+ *
+ * Three streams at this gap is roughly four unfollows a second. It is still
+ * randomised and still gapped; it is simply far less patient, which is why the
+ * popup makes you tick a box that says so.
+ */
+export const FAST_PACING = Object.freeze({
+  minDelayMs: 500,
+  maxDelayMs: 900,
+});
+
+/**
+ * One followers page every 0.4–0.8 seconds, randomised.
+ *
+ * Reading is cheaper than writing and the followers list is long — 9,479
+ * followers is 190 pages — so the gap between reads is half the gap between
+ * unfollows. It is still a gap: the scan never bursts.
+ */
+export const SCAN_PACING = Object.freeze({
+  minDelayMs: 400,
+  maxDelayMs: 800,
 });
 
 /** Progress is announced this often, so a long run does not go quiet. */

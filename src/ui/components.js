@@ -35,6 +35,21 @@ export function field(label, control, hint) {
   );
 }
 
+/**
+ * A checkbox with its label beside it, and an optional hint under both.
+ *
+ * The whole thing is one `<label>`, so the words are part of the hit area — a
+ * 13px tick box on its own is not something to make somebody aim at.
+ */
+export function checkField(label, control, hint) {
+  return el(
+    'label',
+    { class: 'check' },
+    el('span', { class: 'check-row' }, control, el('span', { class: 'check-label' }, label)),
+    hint ? el('span', { class: 'hint' }, hint) : null,
+  );
+}
+
 /** Horizontal row of controls. */
 export function row(...children) {
   return el('div', { class: 'row' }, children);
@@ -46,6 +61,11 @@ export function row(...children) {
 
 export function input(attrs = {}) {
   return el('input', { type: 'text', class: 'input', ...attrs });
+}
+
+/** A tick box. Its own class, because `.input` is sized for typing in. */
+export function checkbox(attrs = {}) {
+  return el('input', { type: 'checkbox', class: 'checkbox', ...attrs });
 }
 
 /* ================================================================== */

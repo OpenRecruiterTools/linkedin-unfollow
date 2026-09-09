@@ -15,9 +15,22 @@
  *             → data.data.searchDashClustersByAll.metadata.totalResultCount
  *               plus EntityResultViewModel rows in `included`
  *
+ *   followers GET  the same query with resultType FOLLOWERS and count:50
+ *             → the same total, the same EntityResultViewModel rows, and one
+ *               com.linkedin.voyager.dash.feed.FollowingState per result
+ *               carrying `following: true|false`
+ *
  *   unfollow  POST /voyager/api/feed/dash/followingStates/
  *                  urn:li:fsd_followingState:urn:li:fsd_profile:<id>
  *             body {"patch":{"$set":{"following":false}}}  → 200
+ *
+ * Why there is a followers call at all, verified on a real account on
+ * 2026-09-09: **the Following list does not include your connections.** You are
+ * made to follow everyone you connect with, and you go on following them after
+ * the Following list has been emptied to zero — which is why a feed that should
+ * be silent is still full of posts. The followers list is the only place that
+ * state is visible: every row comes back with its own `FollowingState`, so
+ * `following: true` on a follower is a connection you are still following.
  *
  * The URL is built by hand, unencoded parentheses and all, because that is
  * what was captured and Rest.li's query grammar is not URL-encoded here.
@@ -36,6 +49,14 @@ export const FOLLOWING_QUERY_ID =
 
 /** The page size the site itself uses. */
 export const PAGE_SIZE = 10;
+
+/**
+ * The page size for the followers list.
+ *
+ * Fifty is what the endpoint will give you in one go, and the followers list is
+ * the long one — 9,479 followers is 190 reads at fifty, and would be 948 at ten.
+ */
+export const FOLLOWERS_PAGE_SIZE = 50;
 
 /** The one and only body we ever POST. */
 export const UNFOLLOW_PATCH = { patch: { $set: { following: false } } };
@@ -63,6 +84,26 @@ export function followingListUrl(start, count = PAGE_SIZE) {
     `${API_BASE}/graphql?variables=(start:${start},count:${count},origin:CurationHub,` +
     'query:(flagshipSearchIntent:MYNETWORK_CURATION_HUB,includeFiltersInResponse:true,' +
     'queryParameters:List((key:resultType,value:List(PEOPLE_FOLLOW)))))' +
+    `&queryId=${FOLLOWING_QUERY_ID}`
+  );
+}
+
+/**
+ * One page of the people who follow *you*, which is where the state of your
+ * connections is visible.
+ *
+ * The same query as `followingListUrl`, with `FOLLOWERS` in place of
+ * `PEOPLE_FOLLOW` — same origin, same hashed query id, same grammar.
+ *
+ * @param {number} start row offset
+ * @param {number} [count] page size
+ * @returns {string}
+ */
+export function followersListUrl(start, count = FOLLOWERS_PAGE_SIZE) {
+  return (
+    `${API_BASE}/graphql?variables=(start:${start},count:${count},origin:CurationHub,` +
+    'query:(flagshipSearchIntent:MYNETWORK_CURATION_HUB,includeFiltersInResponse:true,' +
+    'queryParameters:List((key:resultType,value:List(FOLLOWERS)))))' +
     `&queryId=${FOLLOWING_QUERY_ID}`
   );
 }
@@ -185,6 +226,74 @@ export async function fetchFollowingPage({ start, count = PAGE_SIZE, token }) {
     payload = null;
   }
   return { status: response.status, ...parseFollowingPage(payload) };
+}
+
+/**
+ * Turn one FOLLOWERS response into a total and a list of people, each carrying
+ * whether you are still following them.
+ *
+ * Two kinds of row have to be put back together, because neither is complete on
+ * its own:
+ *
+ *   - `…search.EntityResultViewModel` — the profile urn and, on `title.text`,
+ *     the name. Read by exactly the same helpers the Following list uses.
+ *   - `…feed.FollowingState` — `entityUrn:
+ *     "urn:li:fsd_followingState:urn:li:fsd_profile:<id>"` and
+ *     `following: true|false`. The `…identity.profile.Profile` rows in this
+ *     response carry a picture and an urn but no name, so names never come from
+ *     them.
+ *
+ * A row with no state of its own is reported as `following: false`, so an
+ * unrecognised shape can only ever mean "do not touch this person".
+ *
+ * @param {object} payload parsed JSON body
+ * @returns {{total: number|null,
+ *   people: {urn: string, name: string, following: boolean}[]}}
+ */
+export function parseFollowersPage(payload) {
+  const included = (payload && payload.included) || [];
+
+  /** profile urn → following, from the FollowingState rows. */
+  const states = new Map();
+  for (const item of included) {
+    const type = String((item && item.$type) || '');
+    if (!type.includes('FollowingState')) continue;
+    const urn = profileUrnOf(item);
+    if (!urn) continue;
+    states.set(urn, item.following === true);
+  }
+
+  const rows = parseFollowingPage(payload);
+  const people = rows.people.map((person) => ({
+    ...person,
+    following: states.get(person.urn) === true,
+  }));
+
+  return { total: rows.total, people };
+}
+
+/**
+ * Fetch one page of the followers list.
+ *
+ * @param {{start: number, count?: number, token: string}} options
+ * @returns {Promise<{status: number, total: number|null,
+ *   people: {urn: string, name: string, following: boolean}[]}>}
+ */
+export async function fetchFollowersPage({ start, count = FOLLOWERS_PAGE_SIZE, token }) {
+  const response = await fetch(followersListUrl(start, count), {
+    method: 'GET',
+    credentials: 'include',
+    headers: apiHeaders(token),
+  });
+  if (!response.ok) return { status: response.status, total: null, people: [] };
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  return { status: response.status, ...parseFollowersPage(payload) };
 }
 
 /* ================================================================== */
