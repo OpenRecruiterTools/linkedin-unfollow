@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LinkedIn Unfollow — clear the AI slop out of your feed</title>
+    <meta
+      name="description"
+      content="Unfollow everyone in your LinkedIn feed in one click, at human pace, in your own browser. Free, open source, no account."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='17' fill='%235b5bd6'/%3E%3Cpath d='M20 20 L44 44 M44 20 L20 44' stroke='white' stroke-width='8' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        --bg: #f7f7fb;
+        --surface: #ffffff;
+        --surface-2: #f0f0f6;
+        --text: #17171d;
+        --muted: #61616f;
+        --border: #e3e3ec;
+        --accent: #5b5bd6;
+        --accent-text: #ffffff;
+        --warn-bg: #fdf6e7;
+        --warn-border: #e8cf94;
+        --warn-text: #6b4c07;
+        --radius: 12px;
+        color-scheme: light;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #131317;
+          --surface: #1c1c22;
+          --surface-2: #24242c;
+          --text: #ececf2;
+          --muted: #9d9dab;
+          --border: #31313c;
+          --accent: #8f8ff2;
+          --accent-text: #14141a;
+          --warn-bg: #2c2412;
+          --warn-border: #6a5620;
+          --warn-text: #ecd9a5;
+          color-scheme: dark;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family:
+          system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Helvetica Neue',
+          sans-serif;
+        font-size: 17px;
+        line-height: 1.6;
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      main,
+      header,
+      footer {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+
+      a {
+        color: var(--accent);
+      }
+
+      h1,
+      h2,
+      h3 {
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 6vw, 3rem);
+        font-weight: 750;
+      }
+
+      h2 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin: 3rem 0 0.75rem;
+      }
+
+      h3 {
+        font-size: 1.05rem;
+        font-weight: 650;
+        margin: 1.75rem 0 0.4rem;
+      }
+
+      p,
+      ul,
+      ol {
+        margin: 0 0 1rem;
+      }
+
+      ul,
+      ol {
+        padding-left: 1.25rem;
+      }
+
+      li {
+        margin-bottom: 0.35rem;
+      }
+
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.88em;
+        padding: 1px 5px;
+        background: var(--surface-2);
+        border-radius: 5px;
+      }
+
+      /* ---------- Hero ---------- */
+
+      .hero {
+        padding-top: 4rem;
+        padding-bottom: 1rem;
+        text-align: center;
+      }
+
+      .mark {
+        width: 60px;
+        height: 60px;
+        margin: 0 auto 1.25rem;
+        display: block;
+      }
+
+      .subline {
+        font-size: 1.15rem;
+        color: var(--muted);
+        max-width: 34rem;
+        margin: 1rem auto 2rem;
+      }
+
+      .download {
+        display: inline-block;
+        padding: 0.85rem 1.75rem;
+        font-size: 1.05rem;
+        font-weight: 650;
+        color: var(--accent-text);
+        background: var(--accent);
+        border-radius: 999px;
+        text-decoration: none;
+      }
+
+      .download:hover {
+        filter: brightness(1.08);
+      }
+
+      .under-button {
+        margin-top: 0.8rem;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      /* ---------- Steps ---------- */
+
+      .step {
+        margin: 2rem 0;
+      }
+
+      .step-title {
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        font-weight: 650;
+        margin-bottom: 0.35rem;
+      }
+
+      .num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 1.6rem;
+        height: 1.6rem;
+        font-size: 0.85rem;
+        color: var(--accent-text);
+        background: var(--accent);
+        border-radius: 50%;
+        transform: translateY(2px);
+      }
+
+      figure {
+        margin: 0.75rem 0 0;
+      }
+
+      img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      /* ---------- Cards, notes ---------- */
+
+      .card {
+        padding: 1.1rem 1.25rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+
+      .card + .card {
+        margin-top: 0.75rem;
+      }
+
+      .card p:last-child,
+      .card ul:last-child {
+        margin-bottom: 0;
+      }
+
+      .note {
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      .warn {
+        padding: 1.1rem 1.25rem;
+        color: var(--warn-text);
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-border);
+        border-radius: var(--radius);
+      }
+
+      .warn p:last-child {
+        margin-bottom: 0;
+      }
+
+      details {
+        padding: 0.85rem 1.1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+
+      details + details {
+        margin-top: 0.5rem;
+      }
+
+      summary {
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      details[open] summary {
+        margin-bottom: 0.5rem;
+      }
+
+      details p:last-child {
+        margin-bottom: 0;
+      }
+
+      /* ---------- Footer ---------- */
+
+      footer {
+        margin-top: 4rem;
+        padding-top: 1.5rem;
+        padding-bottom: 3rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      footer p {
+        margin-bottom: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <rect width="64" height="64" rx="17" fill="#5b5bd6" />
+        <path
+          d="M20 20 L44 44 M44 20 L20 44"
+          stroke="#ffffff"
+          stroke-width="8"
+          stroke-linecap="round"
+        />
+      </svg>
+      <h1>Tired of the AI slop in your LinkedIn feed?</h1>
+      <p class="subline">
+        Unfollow everyone in one click, at human pace, in your own browser. Free, open source, no
+        account.
+      </p>
+      <a
+        class="download"
+        href="https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest/download/linkedin-unfollow.zip"
+        >Download for Chrome</a
+      >
+      <p class="under-button">
+        Chrome, Edge, Brave or any Chromium browser · ~34 KB ·
+        <a href="https://github.com/OpenRecruiterTools/linkedin-unfollow">source on GitHub</a>
+      </p>
+    </header>
+
+    <main>
+      <p style="margin-top: 2.5rem">
+        You stay connected to everyone. Unfollowing is not disconnecting — your connections stay
+        connections, you just stop seeing their posts, and your feed goes quiet.
+      </p>
+
+      <h2>Install it</h2>
+      <p class="note">
+        Three steps, about two minutes. It is not on the Chrome Web Store —
+        <a href="#store">here is why</a>. The screenshots come from
+        <a href="https://github.com/OpenRecruiterTools/linkedin-toolkit">LinkedIn Toolkit</a>, the
+        bigger project this was carved out of; Chrome's side of the process is identical, only the
+        name on the card differs.
+      </p>
+
+      <div class="step">
+        <p class="step-title"><span class="num">1</span> Download the zip and unzip it</p>
+        <p>
+          Take <code>linkedin-unfollow.zip</code> from the
+          <a href="https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest"
+            >latest release</a
+          >
+          and unzip it somewhere you will keep it. Chrome loads the extension from that folder every
+          time it starts, so do not leave it in Downloads and then empty Downloads.
+        </p>
+        <figure>
+          <img src="assets/install-1-release.png" alt="Downloading the zip from a GitHub release" />
+        </figure>
+      </div>
+
+      <div class="step">
+        <p class="step-title">
+          <span class="num">2</span> Open <code>chrome://extensions</code> and turn on Developer mode
+        </p>
+        <p>
+          Type that address in by hand — it will not come up in search results. The switch is in the
+          top-right corner.
+        </p>
+        <figure>
+          <img
+            src="assets/install-2-extensions.png"
+            alt="Chrome's extensions page with Developer mode switched on"
+          />
+        </figure>
+      </div>
+
+      <div class="step">
+        <p class="step-title">
+          <span class="num">3</span> Click "Load unpacked", pick the folder, pin the icon
+        </p>
+        <p>
+          Pick the folder itself — the one holding <code>manifest.json</code>, not a file inside it.
+          Then click the jigsaw-piece icon in the toolbar and pin LinkedIn Unfollow. Sign in to
+          LinkedIn as normal and click the icon.
+        </p>
+        <figure>
+          <img src="assets/install-3-loaded.png" alt="The loaded extension card in Chrome" />
+        </figure>
+        <figure style="margin-top: 0.75rem">
+          <img src="assets/install-5-popup.png" alt="The extension popup, open" />
+        </figure>
+      </div>
+
+      <h2>Then: preview, try one, run it</h2>
+      <div class="card">
+        <ol>
+          <li><strong>Check count</strong> — how many accounts you follow. Changes nothing.</li>
+          <li>
+            <strong>Preview</strong> — the list of people it <em>would</em> unfollow, read by exactly
+            the same call. Sends no unfollow at all.
+          </li>
+          <li>
+            <strong>Unfollow</strong> — set "Unfollow up to" to <strong>1</strong> first, run it, and
+            check that person really is unfollowed. Then set it to 25, or 500, or clear the box for
+            everyone.
+          </li>
+        </ol>
+        <p class="note">
+          While it runs there is a progress line and a <strong>Stop</strong> button, which ends the
+          run after the person it is on. 800 people takes roughly fifteen minutes, and you can close
+          the popup while it works.
+        </p>
+      </div>
+
+      <h2>How it works, and where it stops</h2>
+      <div class="card">
+        <p>
+          It sends the same two requests linkedin.com's own "Following" page sends, from your own
+          signed-in browser. The count is LinkedIn's own total, so it is the real number rather than
+          a count of rows on screen.
+        </p>
+        <ul>
+          <li>
+            <strong>Paced like a human.</strong> One person every 0.8–1.6 seconds, randomised, one
+            request at a time. Never a burst.
+          </li>
+          <li>
+            <strong>Stops on any LinkedIn challenge.</strong> 429, 451, 401 and 403 end the run on
+            the spot, and so do two failures in a row. Nothing is ever retried.
+          </li>
+          <li>
+            <strong>Never more than you asked for.</strong> The limit is enforced in the engine, and
+            you can stop a run at any point.
+          </li>
+          <li>
+            <strong>Nothing leaves your browser.</strong> No account, no server, no analytics, no
+            telemetry, no third-party requests of any kind. The only host it talks to is
+            <code>www.linkedin.com</code>, with your own cookies.
+          </li>
+          <li>
+            <strong>Nothing is bypassed.</strong> It uses your own session, at a fraction of the rate
+            a person clicking could manage. No security measure is defeated or worked around — when
+            LinkedIn puts up a challenge, it stops.
+          </li>
+          <li>
+            <strong>You can read all of it.</strong> About 1,800 lines, no build step, MIT licensed.
+            What you install is what is in the repository.
+          </li>
+        </ul>
+      </div>
+
+      <h2>Questions</h2>
+
+      <details>
+        <summary>Is this against LinkedIn's terms?</summary>
+        <p>
+          Yes — automating your account is. LinkedIn's User Agreement prohibits using bots or other
+          automated methods to access the service, and LinkedIn restricts and permanently bans
+          accounts for it. This tool does not pretend otherwise. Use it on your own account, with
+          your eyes open, or do not use it.
+        </p>
+      </details>
+
+      <details>
+        <summary>Does it bypass any security measure?</summary>
+        <p>
+          No. It sends the requests the page itself sends, signed with your own session cookie, more
+          slowly than a person clicking could manage. It does not defeat rate limits, solve
+          challenges, rotate identities, or touch anyone else's account.
+        </p>
+      </details>
+
+      <details>
+        <summary>Will I lose my connections?</summary>
+        <p>
+          No. Unfollowing is not disconnecting. Your connections stay connections; you just stop
+          seeing their posts, and you can follow anyone again by hand.
+        </p>
+      </details>
+
+      <details>
+        <summary>Can I undo it?</summary>
+        <p>
+          No — not in bulk. Unfollowing 800 people would have to be reversed 800 times by hand. That
+          is exactly why Preview, and a limit of 1, exist. Use them.
+        </p>
+      </details>
+
+      <details>
+        <summary>Do you see any of my data?</summary>
+        <p>No. There is nothing to see it with: no account, no backend, no analytics.</p>
+      </details>
+
+      <details id="store">
+        <summary>Why is it not in the Chrome Web Store?</summary>
+        <p>
+          Store policy forbids extensions that facilitate breaking another site's terms of service,
+          and an honest reading of LinkedIn's terms puts automating your own account in that
+          territory. Loading it unpacked keeps the decision — and the code you are running, which you
+          can read — with you.
+        </p>
+      </details>
+
+      <h2>Before you install it</h2>
+      <div class="warn">
+        <p>
+          <strong>Automating your LinkedIn account may breach LinkedIn's User Agreement.</strong>
+          LinkedIn detects automation and restricts, suspends and permanently bans accounts for it,
+          including accounts that have done nothing else wrong. That risk is entirely yours. The
+          pacing and the stop conditions here reduce it; nothing removes it.
+        </p>
+        <p>
+          This software is provided as is, without warranty of any kind. The author is not
+          responsible for any restriction, suspension or loss of your LinkedIn account, for any
+          people you unfollow and cannot get back, or for any other consequence of running it. It
+          performs an irreversible bulk action on your own account: preview first, try one, and never
+          run it against an account you cannot afford to lose. It is for your own account only.
+        </p>
+      </div>
+    </main>
+
+    <footer>
+      <p>
+        Want search export, saved lists, an AI copilot and thirty-odd other things on LinkedIn? That
+        is the bigger project this was carved out of:
+        <a href="https://github.com/OpenRecruiterTools/linkedin-toolkit">LinkedIn Toolkit</a>.
+      </p>
+      <p>
+        Built by
+        <a href="https://www.linkedin.com/in/dominic-g-6a9a5680/">Dominic Gonsalves</a>, founder of
+        <a href="https://formatix.ai">Formatix AI</a>.
+      </p>
+      <p>
+        MIT licensed ·
+        <a href="https://github.com/OpenRecruiterTools/linkedin-unfollow">Source and issues</a>
+      </p>
+    </footer>
+  </body>
+</html>
