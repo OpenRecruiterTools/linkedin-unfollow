@@ -16,10 +16,6 @@ seeing their posts, and your feed goes quiet.
 
 Four steps, about two minutes. It is not on the Chrome Web Store — [see why](#why-it-is-not-in-the-chrome-web-store).
 
-> The screenshots below are from [LinkedIn Toolkit](https://github.com/OpenRecruiterTools/linkedin-toolkit),
-> the bigger project this was carved out of. Chrome's side of the process is
-> identical; only the name on the card differs.
-
 ### 1. Download the zip
 
 Take `linkedin-unfollow.zip` from the
