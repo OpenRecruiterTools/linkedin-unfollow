@@ -9,8 +9,16 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { MESSAGES, STOPPED, UNFOLLOW_LIMIT_DEFAULT } from '../src/constants.js';
-import { AUTHOR_URL, FORMATIX_URL, TOOLKIT_URL, mount } from '../src/popup/popup.js';
+import { MESSAGES, PHASE, SCOPE, SPEED, STOPPED, UNFOLLOW_LIMIT_DEFAULT } from '../src/constants.js';
+import {
+  AUTHOR_URL,
+  CONNECTIONS_HINT,
+  CONNECTIONS_LABEL,
+  FAST_LABEL,
+  FORMATIX_URL,
+  TOOLKIT_URL,
+  mount,
+} from '../src/popup/popup.js';
 
 let container;
 
@@ -58,6 +66,17 @@ describe('the screen', () => {
     expect(link.textContent).toMatch(/LinkedIn Toolkit/);
   });
 
+  it('offers both tick boxes, off, and says what each one costs', () => {
+    serveWorker({});
+    mount(container);
+
+    expect($('everyone').checked).toBe(false);
+    expect($('fast').checked).toBe(false);
+    expect(container.textContent).toContain(CONNECTIONS_LABEL);
+    expect(container.textContent).toContain(CONNECTIONS_HINT);
+    expect(container.textContent).toContain(FAST_LABEL);
+  });
+
   it('credits its author in the footer', () => {
     serveWorker({});
     mount(container);
@@ -98,6 +117,143 @@ describe('Check count', () => {
 
     expect($('error').hidden).toBe(false);
     expect($('error').textContent).toBe('You are not signed in to LinkedIn.');
+  });
+});
+
+/* ================================================================== */
+/*  The connections box                                               */
+/* ================================================================== */
+
+describe('Also unfollow my connections', () => {
+  it('makes Check count scan the followers list, and says what it found', async () => {
+    const send = serveWorker({
+      [MESSAGES.COUNT]: {
+        count: 735,
+        sample: [],
+        followers: { total: 940, stillFollowing: 120 },
+      },
+    });
+    mount(container);
+
+    $('everyone').click();
+    await press('count');
+
+    expect(send).toHaveBeenCalledWith({ type: MESSAGES.COUNT, scope: SCOPE.EVERYONE });
+    expect($('status').textContent).toBe(
+      'You follow 735 accounts. Another 120 of your 940 followers — your connections — are followed too.',
+    );
+  });
+
+  it('leaves Check count alone when it is not ticked', async () => {
+    const send = serveWorker({ [MESSAGES.COUNT]: { count: 735, sample: [] } });
+    mount(container);
+
+    await press('count');
+
+    expect(send).toHaveBeenCalledWith({ type: MESSAGES.COUNT });
+    expect($('status').textContent).toBe('You follow 735 accounts.');
+  });
+
+  it('asks Preview for both lists', async () => {
+    const send = serveWorker({
+      [MESSAGES.PREVIEW]: { unfollowed: 0, attempted: 0, names: [], stopped: STOPPED.END },
+    });
+    mount(container);
+
+    $('everyone').click();
+    await press('preview');
+
+    expect(send).toHaveBeenCalledWith({
+      type: MESSAGES.PREVIEW,
+      limit: UNFOLLOW_LIMIT_DEFAULT,
+      scope: SCOPE.EVERYONE,
+    });
+  });
+
+  it('warns in the dialog that connections are in it, then runs with the scope', async () => {
+    const send = serveWorker({
+      [MESSAGES.UNFOLLOW]: { unfollowed: 1, attempted: 1, names: [], stopped: STOPPED.LIMIT },
+    });
+    mount(container);
+
+    $('everyone').click();
+    await press('unfollow');
+    expect(document.querySelector('.modal-body').textContent).toMatch(/connections are included/i);
+    await press('confirm-ok');
+
+    expect(send).toHaveBeenCalledWith({
+      type: MESSAGES.UNFOLLOW,
+      limit: UNFOLLOW_LIMIT_DEFAULT,
+      scope: SCOPE.EVERYONE,
+    });
+  });
+
+  it('shows the scan as it goes', () => {
+    serveWorker({});
+    mount(container);
+
+    for (const listener of chrome.__mock.listeners.onMessage) {
+      listener(
+        { type: MESSAGES.PROGRESS, phase: PHASE.SCANNING, scanned: 150, followersTotal: 947 },
+        {},
+        () => {},
+      );
+    }
+
+    expect($('progress').hidden).toBe(false);
+    expect($('progress').textContent).toBe('Scanning followers… 150 of 947');
+  });
+});
+
+/* ================================================================== */
+/*  The fast box                                                      */
+/* ================================================================== */
+
+describe('Fast', () => {
+  it('goes to the run, and to nothing that only reads', async () => {
+    const send = serveWorker({
+      [MESSAGES.COUNT]: { count: 4, sample: [] },
+      [MESSAGES.PREVIEW]: { unfollowed: 0, attempted: 0, names: [], stopped: STOPPED.END },
+      [MESSAGES.UNFOLLOW]: { unfollowed: 2, attempted: 2, names: [], stopped: STOPPED.LIMIT },
+    });
+    mount(container);
+
+    $('fast').click();
+    await press('count');
+    await press('preview');
+    expect(send).toHaveBeenCalledWith({ type: MESSAGES.COUNT });
+    expect(send).toHaveBeenCalledWith({
+      type: MESSAGES.PREVIEW,
+      limit: UNFOLLOW_LIMIT_DEFAULT,
+    });
+
+    await press('unfollow');
+    await press('confirm-ok');
+
+    expect(send).toHaveBeenCalledWith({
+      type: MESSAGES.UNFOLLOW,
+      limit: UNFOLLOW_LIMIT_DEFAULT,
+      speed: SPEED.FAST,
+    });
+  });
+
+  it('rides along with the connections box when both are ticked', async () => {
+    const send = serveWorker({
+      [MESSAGES.UNFOLLOW]: { unfollowed: 2, attempted: 2, names: [], stopped: STOPPED.LIMIT },
+    });
+    mount(container);
+
+    $('everyone').click();
+    $('fast').click();
+    $('limit').value = '';
+    await press('unfollow');
+    await press('confirm-ok');
+
+    expect(send).toHaveBeenCalledWith({
+      type: MESSAGES.UNFOLLOW,
+      scope: SCOPE.EVERYONE,
+      speed: SPEED.FAST,
+    });
   });
 });
 
