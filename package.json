@@ -1,0 +1,22 @@
+{
+  "name": "linkedin-unfollow",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Unfollow everyone in your LinkedIn feed in one click, at human pace, in your own browser.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "eslint .",
+    "zip": "node scripts/zip.mjs"
+  },
+  "devDependencies": {
+    "adm-zip": "^0.5.16",
+    "eslint": "^8.57.1",
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.9"
+  }
+}
