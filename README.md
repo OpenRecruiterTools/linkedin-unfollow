@@ -232,7 +232,7 @@ There is no build step. `src/` is what ships.
 | `src/background.js` | The engine: two sources, one to three streams, pacing, limits, stop conditions, message router. |
 | `src/dom-fallback.js` | The click-the-page engine, kept for when the query id rotates. |
 | `src/popup/` | The one screen. |
-| `tests/` | 114 tests. Every fixture is invented; no real person appears in them. |
+| `tests/` | 115 tests. Every fixture is invented; no real person appears in them. |
 
 ---
 
