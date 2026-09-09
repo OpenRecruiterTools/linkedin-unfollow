@@ -658,6 +658,20 @@ describe('unfollowAll — everyone', () => {
     expect(result.unfollowed).toBeGreaterThan(0);
   });
 
+  it('leaves the same gap between followers pages a count-only scan does', async () => {
+    fakeLinkedIn({ people: [], followers: manyFollowers(120) });
+
+    await unfollowAll({ scope: SCOPE.EVERYONE });
+
+    // Unfollow gaps start at 800ms, so anything shorter is a read gap.
+    const reads = delays.filter((delay) => delay < PACING.minDelayMs);
+    expect(reads.length).toBeGreaterThan(0);
+    for (const delay of reads) {
+      expect(delay).toBeGreaterThanOrEqual(SCAN_PACING.minDelayMs);
+      expect(delay).toBeLessThanOrEqual(SCAN_PACING.maxDelayMs);
+    }
+  });
+
   it('previews both sources, and sends nothing at all', async () => {
     const server = fakeLinkedIn({ people: PEOPLE.slice(0, 2), followers: FOLLOWERS });
 
@@ -732,6 +746,40 @@ describe('unfollowAll — fast', () => {
     expect(result.stopped).toBe(STOPPED.LIMIT);
     expect(posts()).toHaveLength(5);
     expect(server.unfollowed).toEqual(PEOPLE.slice(0, 5).map((person) => person.urn));
+  });
+
+  it('unfollows exactly one when asked for one, and does not end at nought', async () => {
+    const server = fakeLinkedIn({ postDelayMs: 2 });
+
+    const result = await unfollowAll({ limit: 1, speed: SPEED.FAST });
+
+    // Two of the three streams are refused a slot before the third has sent
+    // anything; neither of them gets to end the run.
+    expect(result.unfollowed).toBe(1);
+    expect(result.stopped).toBe(STOPPED.LIMIT);
+    expect(posts()).toHaveLength(1);
+    expect(server.unfollowed).toEqual([PEOPLE[0].urn]);
+  });
+
+  it('unfollows exactly two when asked for two', async () => {
+    const server = fakeLinkedIn({ postDelayMs: 2 });
+
+    const result = await unfollowAll({ limit: 2, speed: SPEED.FAST });
+
+    expect(result.unfollowed).toBe(2);
+    expect(result.stopped).toBe(STOPPED.LIMIT);
+    expect(posts()).toHaveLength(2);
+    expect(server.unfollowed).toEqual(PEOPLE.slice(0, 2).map((person) => person.urn));
+  });
+
+  it('a limit bigger than the list ends at the end of the list', async () => {
+    const server = fakeLinkedIn({ people: PEOPLE.slice(0, 3), postDelayMs: 2 });
+
+    const result = await unfollowAll({ limit: 5, speed: SPEED.FAST });
+
+    expect(result.unfollowed).toBe(3);
+    expect(result.stopped).toBe(STOPPED.END);
+    expect(server.people).toEqual([]);
   });
 
   it('hands out every person exactly once across the streams', async () => {

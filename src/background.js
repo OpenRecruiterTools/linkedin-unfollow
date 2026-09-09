@@ -233,9 +233,17 @@ function endRun(run, how, error) {
  * three streams from between them overshooting a limit of five. A slot is given
  * back when the attempt does not land, because the limit counts unfollows, not
  * attempts.
+ *
+ * Being refused a slot does **not** end the run: with three streams and a limit
+ * of one, two of them are refused before the third has sent anything, and if
+ * either of those ended the run it would end at nought unfollowed. A refused
+ * stream retires quietly and leaves `drain` to decide.
  */
 function claimSlot(run) {
-  if (run.claimed >= run.limit) return false;
+  if (run.claimed >= run.limit) {
+    run.limitReached = true;
+    return false;
+  }
   run.claimed += 1;
   return true;
 }
@@ -412,11 +420,13 @@ function followersQueue(run) {
     });
 
     const nextStart = start + FOLLOWERS_PAGE_SIZE;
-    return {
-      people,
-      nextStart,
-      ended: run.followersTotal !== null && nextStart >= run.followersTotal,
-    };
+    const ended = run.followersTotal !== null && nextStart >= run.followersTotal;
+
+    // The same gap between reads the count-only scan leaves, for the same
+    // reason: this list is long, and 190 requests in a row is a burst.
+    if (!ended) await sleep(nextScanDelayMs());
+
+    return { people, nextStart, ended };
   }, MAX_SCAN_PAGES);
 }
 
@@ -474,10 +484,8 @@ async function stream(run, queue, delayFn) {
       endRun(run, STOPPED.STOPPED);
       return;
     }
-    if (!claimSlot(run)) {
-      endRun(run, STOPPED.LIMIT);
-      return;
-    }
+    // No slot left. Somebody else is using it: retire, and let `drain` decide.
+    if (!claimSlot(run)) return;
 
     // eslint-disable-next-line no-await-in-loop
     const person = await queue.next();
@@ -508,10 +516,20 @@ async function stream(run, queue, delayFn) {
   }
 }
 
-/** Work one source dry with `streams` streams, then come back. */
+/**
+ * Work one source dry with `streams` streams, then come back.
+ *
+ * The limit is called here rather than in a stream, because a stream that is
+ * refused a slot only knows that *somebody* has the last one, not whether they
+ * finished with it. Once every stream is home, the run stopped at its limit if
+ * a stream was refused and the slots that were claimed are all still spent —
+ * `claimed` having fallen back below the limit means the list simply ran out.
+ */
 async function drain(run, queue, streams, delayFn) {
   run.ending = false;
+  run.limitReached = false;
   await Promise.all(Array.from({ length: streams }, () => stream(run, queue, delayFn)));
+  if (run.limitReached && run.claimed >= run.limit) endRun(run, STOPPED.LIMIT);
 }
 
 /* ================================================================== */
@@ -554,6 +572,8 @@ export async function unfollowAll(params = {}) {
     attempted: 0,
     /** Slots taken out of `limit`, held from before a POST until it fails. */
     claimed: 0,
+    /** A stream asked for a slot and there was none: `drain` reads this. */
+    limitReached: false,
     failures: 0,
     followingTotal: null,
     followersTotal: null,
