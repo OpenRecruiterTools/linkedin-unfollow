@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LinkedIn Unfollow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Unfollow everyone in your LinkedIn feed in one click, at human pace, in your own browser. Free, open source, no account.",
   "permissions": [
     "activeTab",

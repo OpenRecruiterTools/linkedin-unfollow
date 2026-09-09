@@ -8,7 +8,7 @@
  */
 import { beforeEach, vi } from 'vitest';
 
-const MANIFEST = { version: '1.0.0', name: 'LinkedIn Unfollow', manifest_version: 3 };
+const MANIFEST = { version: '1.1.0', name: 'LinkedIn Unfollow', manifest_version: 3 };
 
 /** Mutable backing state; also reachable from tests via `chrome.__mock`. */
 const mock = {

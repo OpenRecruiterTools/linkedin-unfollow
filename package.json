@@ -1,6 +1,6 @@
 {
   "name": "linkedin-unfollow",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Unfollow everyone in your LinkedIn feed in one click, at human pace, in your own browser.",

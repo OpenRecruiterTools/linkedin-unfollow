@@ -76,10 +76,21 @@ How to use it
 3. Set "Unfollow up to" to 1, run it, and check that person really is
    unfollowed. Then set it to whatever you want, or clear the box for everyone.
 
+Two tick boxes sit under the number box, both off to begin with:
+
+- "Also unfollow my connections" — LinkedIn makes you follow everyone you
+  connect with, and those connections never appear on the Following list, so
+  emptying that list to 0 does not silence your feed. Tick this and the run
+  also reads your followers list, where their state is visible, and unfollows
+  the ones you are still following. Slower: it is a lot more reading.
+- "Fast (3 at a time)" — three requests at once instead of one. Several times
+  quicker, and correspondingly more likely to be what LinkedIn rate-limits.
+  Careful, one at a time, is the default and the one to use.
+
 While it runs it sends the same unfollow request the LinkedIn page sends, one
-person at a time, roughly one a second. "Stop" ends it after the person it is
-on. If LinkedIn answers 429, 451, 401 or 403 the run stops on the spot and
-nothing is retried.
+person at a time (three in fast mode), roughly one a second. "Stop" ends it
+after the person it is on. If LinkedIn answers 429, 451, 401 or 403 the run
+stops on the spot and nothing is retried.
 
 Before you use it
 -----------------
