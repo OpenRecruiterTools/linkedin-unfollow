@@ -8,7 +8,8 @@ Free, open source, no account, no server, no telemetry.
 You stay connected to everyone — unfollowing is not disconnecting. You just stop
 seeing their posts, and your feed goes quiet.
 
-[**Download for Chrome →**](https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest/download/linkedin-unfollow.zip)
+[**Download for Chrome →**](https://formatix.ai/unfollow) — download page with pictures, or take
+[the zip](https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest/download/linkedin-unfollow.zip) straight from the latest release.
 
 ---
 
