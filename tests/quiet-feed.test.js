@@ -47,8 +47,14 @@ const feedPost = (header, author = 'Marcus Webb', degree = '• 2nd') =>
     .filter(Boolean)
     .join('\n');
 
-/** The eight items the tests start from: five hideable, three not. */
-const EIGHT = [
+/** A post from somebody you do not follow: no header, but a Follow button. */
+const unfollowedPost = (author = 'Aly Moursy') =>
+  ['Feed post', author, '• 3rd+', 'Founder & CEO, Veeza AI', '1d • Edited •', 'Follow', body].join(
+    '\n',
+  );
+
+/** The nine items the tests start from: six hideable, three not. */
+const FEED = [
   ['start', 'Start a post\nVideo\nPhoto\nWrite article', QUIET_CATEGORY.UNKNOWN],
   ['like', feedPost('Priya Raman likes this'), QUIET_CATEGORY.REACTION],
   ['direct', feedPost(null, 'Loves Dale'), QUIET_CATEGORY.DIRECT],
@@ -56,14 +62,15 @@ const EIGHT = [
   ['ad', feedPost('Promoted', 'Northwind Analytics', '• Following'), QUIET_CATEGORY.PROMOTED],
   ['repost', feedPost('Sam Okafor reposted this'), QUIET_CATEGORY.REPOST],
   ['suggested', feedPost('Suggested'), QUIET_CATEGORY.SUGGESTED],
+  ['unfollowed', unfollowedPost(), QUIET_CATEGORY.NOT_FOLLOWED],
   ['sort', 'Sort by: Top\nRecent', QUIET_CATEGORY.UNKNOWN],
 ];
 
 let main;
 let quiet;
 
-/** Build the page and hand back a lookup by the name in `EIGHT`. */
-function buildFeed(rows = EIGHT) {
+/** Build the page and hand back a lookup by the name in `FEED`. */
+function buildFeed(rows = FEED) {
   main = document.createElement('main');
   document.body.appendChild(main);
   const byName = {};
@@ -102,13 +109,14 @@ afterEach(() => {
 /*  What it hides                                                     */
 /* ================================================================== */
 
-describe('a feed of eight', () => {
-  it('hides the five that arrived with a header and leaves the other three', async () => {
+describe('a feed of nine', () => {
+  it('hides the six LinkedIn put there and leaves the other three', async () => {
     const nodes = buildFeed();
     await startQuiet();
 
     expect(hidden().map((n) => n.getAttribute(MARK_ATTR)).sort()).toEqual([
       'comment',
+      'not-followed',
       'promoted',
       'reaction',
       'repost',
@@ -123,7 +131,7 @@ describe('a feed of eight', () => {
     const nodes = buildFeed();
     await startQuiet();
 
-    for (const [name, , category] of EIGHT) {
+    for (const [name, , category] of FEED) {
       expect(nodes[name].getAttribute(MARK_ATTR)).toBe(category);
     }
   });
@@ -146,7 +154,7 @@ describe('a feed of eight', () => {
     expect(banner()).not.toBe(null);
     expect(main.firstChild).toBe(banner());
     expect(banner().firstChild.textContent).toBe(
-      'Quiet feed: hid 5 posts (3 from your network’s activity, 1 promoted, 1 suggested).',
+      'Quiet feed: hid 6 posts (3 network activity, 1 promoted, 1 suggested, 1 from people you don’t follow).',
     );
     expect(banner().lastChild.textContent).toBe('Show them');
   });
@@ -170,18 +178,18 @@ describe('“Show them”', () => {
   it('puts every hidden post back for this page load, and takes them away again', async () => {
     const nodes = buildFeed();
     await startQuiet();
-    expect(hidden()).toHaveLength(5);
+    expect(hidden()).toHaveLength(6);
 
     banner().lastChild.click();
     expect(hidden()).toHaveLength(0);
     expect(isHidden(nodes.ad)).toBe(false);
     expect(banner().lastChild.textContent).toBe('Hide them again');
     expect(banner().firstChild.textContent).toBe(
-      'Quiet feed: showing 5 posts it had hidden (3 from your network’s activity, 1 promoted, 1 suggested).',
+      'Quiet feed: showing 6 posts it had hidden (3 network activity, 1 promoted, 1 suggested, 1 from people you don’t follow).',
     );
 
     banner().lastChild.click();
-    expect(hidden()).toHaveLength(5);
+    expect(hidden()).toHaveLength(6);
     expect(banner().lastChild.textContent).toBe('Show them');
   });
 
@@ -246,7 +254,7 @@ describe('a tick in the popup', () => {
     expect(banner()).toBe(null);
   });
 
-  it('untick "Network activity" and only the ad and the suggestion go', async () => {
+  it('untick "Network activity" and only the ad and the two suggestions go', async () => {
     const nodes = buildFeed();
     await startQuiet();
 
@@ -260,6 +268,7 @@ describe('a tick in the popup', () => {
     });
 
     expect(hidden().map((n) => n.getAttribute(MARK_ATTR)).sort()).toEqual([
+      'not-followed',
       'promoted',
       'suggested',
     ]);
@@ -291,7 +300,7 @@ describe('LinkedIn’s virtual scrolling', () => {
   it('picks up items appended after the first pass', async () => {
     buildFeed();
     await startQuiet();
-    expect(hidden()).toHaveLength(5);
+    expect(hidden()).toHaveLength(6);
 
     main.append(
       item(feedPost('Dana Choi likes this'), { componentkey: 'urn:extra-1' }),
@@ -300,9 +309,9 @@ describe('LinkedIn’s virtual scrolling', () => {
     );
     await settle();
 
-    expect(hidden()).toHaveLength(7);
+    expect(hidden()).toHaveLength(8);
     expect(banner().firstChild.textContent).toBe(
-      'Quiet feed: hid 7 posts (4 from your network’s activity, 2 promoted, 1 suggested).',
+      'Quiet feed: hid 8 posts (4 network activity, 2 promoted, 1 suggested, 1 from people you don’t follow).',
     );
   });
 
@@ -317,7 +326,7 @@ describe('LinkedIn’s virtual scrolling', () => {
     await settle();
 
     expect(quiet.counts().reaction).toBe(1);
-    expect(hidden()).toHaveLength(5);
+    expect(hidden()).toHaveLength(6);
   });
 
   it('re-hides a recycled container, mark and all', async () => {
@@ -346,7 +355,7 @@ describe('leaving the feed', () => {
     let onFeed = true;
     buildFeed();
     await startQuiet({ onFeed: () => onFeed });
-    expect(hidden()).toHaveLength(5);
+    expect(hidden()).toHaveLength(6);
 
     onFeed = false;
     main.appendChild(item('Sort by: Top'));
@@ -359,14 +368,14 @@ describe('leaving the feed', () => {
     main.appendChild(item(feedPost('Dana Choi likes this'), { componentkey: 'urn:back' }));
     await settle();
 
-    expect(hidden()).toHaveLength(6);
+    expect(hidden()).toHaveLength(7);
     expect(banner()).not.toBe(null);
   });
 
   it('stop() disconnects the observer and leaves nothing behind', async () => {
     buildFeed();
     await startQuiet();
-    expect(hidden()).toHaveLength(5);
+    expect(hidden()).toHaveLength(6);
 
     quiet.stop();
     expect(hidden()).toHaveLength(0);
@@ -405,13 +414,13 @@ describe('the count it keeps', () => {
 
     const stored = await chrome.storage.local.get(QUIET_FEED_KEYS.HIDDEN);
     const today = stored[QUIET_FEED_KEYS.HIDDEN][dayKey()];
-    expect(today.total).toBe(5);
+    expect(today.total).toBe(6);
     expect(today.reaction).toBe(1);
     expect(today.promoted).toBe(1);
     expect(today.suggested).toBe(1);
 
     const sent = chrome.runtime.sendMessage.mock.calls.map(([m]) => m);
-    expect(sent.some((m) => m.type === 'quietFeedHidden' && m.total === 5)).toBe(true);
+    expect(sent.some((m) => m.type === 'quietFeedHidden' && m.total === 6)).toBe(true);
   });
 
   it('adds to a day that already has a tally rather than replacing it', async () => {
@@ -425,7 +434,8 @@ describe('the count it keeps', () => {
     const stored = await chrome.storage.local.get(QUIET_FEED_KEYS.HIDDEN);
     const today = stored[QUIET_FEED_KEYS.HIDDEN][dayKey()];
     expect(today.reaction).toBe(5);
-    expect(today.total).toBe(9);
+    expect(today['not-followed']).toBe(1);
+    expect(today.total).toBe(10);
   });
 
   it('keeps a week of days and no more', () => {
@@ -452,14 +462,14 @@ describe('the banner’s sentence', () => {
       total: 23,
     });
     expect(bannerText(counts)).toBe(
-      'Quiet feed: hid 23 posts (18 from your network’s activity, 3 promoted, 2 suggested).',
+      'Quiet feed: hid 23 posts (18 network activity, 3 promoted, 2 suggested).',
     );
   });
 
   it('names only the groups that happened', () => {
     expect(bannerText({ promoted: 4 })).toBe('Quiet feed: hid 4 posts (4 promoted).');
     expect(bannerText({ reaction: 1 })).toBe(
-      'Quiet feed: hid 1 post (1 from your network’s activity).',
+      'Quiet feed: hid 1 post (1 network activity).',
     );
   });
 });

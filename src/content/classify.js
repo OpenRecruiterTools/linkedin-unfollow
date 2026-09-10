@@ -1,39 +1,47 @@
 /**
- * Reading the home feed's header line.
+ * Reading a feed post's opening lines.
  *
  * Unfollow everybody and the feed does not empty — it refills. Verified on a
- * real account with the Following list at zero: every post left was there
- * because somebody in the network liked, commented on or reposted it, or
- * because LinkedIn suggested it, or because it was an ad. Each of those arrives
- * with a HEADER line above the author saying why you are being shown it:
+ * real account with the Following list at zero, and then verified again against
+ * the live page: what is left arrives with something in its first few lines
+ * saying why you are being shown it.
  *
- *     Feed post                 ← screen-reader prefix, sometimes absent
- *     Priya Raman likes this    ← the header
- *     Marcus Webb               ← the author block starts here
- *     • 2nd
- *     Head of Data at Northwind
- *     3h •
- *     …the post…
+ * There are four of those signals, and they are not all headers:
  *
- * A post from somebody you actually follow has no header: it starts at the
- * author block. That is the whole distinction, and it is the only one worth
- * making, because the markup around it has no stable class names — LinkedIn
- * obfuscates them and ships `[componentkey]` attributes instead.
+ *     Feed post                     Feed post                 Feed post
+ *     Priya Raman likes this        The Agency Blueprint      Aly M
+ *     Marcus Webb                   10,927 followers          • 3rd+
+ *     • 2nd                         Promoted                  Founder & CEO
+ *     Head of Data                  If I lost my agency…      1d • Edited •
+ *     3h •                                                    Follow
+ *     …the post…                                              …the post…
  *
- * So this module is deliberately small and deliberately timid:
+ *   1. **A header above the author** — "Priya likes this", "Priya and 3 others
+ *      commented", "Priya reposted this", "Followed by Priya", "Suggested".
+ *   2. **A line that is exactly "Promoted"**, which for a page sits *below* the
+ *      name rather than above it, so it is not a header at all.
+ *   3. **A standalone "Follow" button line.** LinkedIn only draws it when you do
+ *      not already follow the author, which makes it an unlabelled suggestion —
+ *      the biggest category on an emptied feed, and the one with no header.
+ *   4. **Nothing** — a post from somebody you actually follow.
  *
- *   1. **An item is only a post if it has an author block** — a degree marker
- *      (`• 1st`, `• 2nd`, `• 3rd`, `• 3rd+`) or `• Following`. No author block,
- *      no classification: `unknown`, and `unknown` is never hidden. That is
- *      what keeps the composer, the "Start a post" card, the draft box and
- *      every other list item in the page untouched.
- *   2. **Only the lines *above* the author block can be the header.** Anything
- *      from the author's name down — headline, body, "Promoted" quoted in a
- *      sentence, "3 comments" under the post — is out of reach by construction.
- *   3. **An unrecognised header is not a category.** It falls through to
- *      `direct`, which is shown. Being wrong in that direction costs you a post
- *      you have to scroll past; being wrong the other way hides something you
- *      wanted, silently, and you never find out.
+ * The markup around all of that has no stable class names; LinkedIn obfuscates
+ * them on every build and ships `[componentkey]` attributes instead. So this
+ * reads the rendered text, and it is deliberately timid about it:
+ *
+ *   - **An item is only a post if it has an author block** — a degree marker
+ *     (`• 1st`, `• 2nd`, `• 3rd+`, `• Following`), a follower count on its own
+ *     line, or the post's own age (`1w • Edited •`). No author block, no
+ *     classification: `unknown`, and `unknown` is never hidden. That is what
+ *     keeps the composer, the draft box, the "Start a post" card, "Add to your
+ *     feed" and the sort control untouched.
+ *   - **Only lines above the author block can be a header**, and only the first
+ *     few lines of an item can hold a Follow button or a "Promoted". A post's
+ *     body is out of reach by construction, so "Promoted" quoted in a sentence
+ *     and "3 comments" under a post cannot be read as either.
+ *   - **An unrecognised header is not a category.** It falls through to
+ *     `direct`, which is shown. Being wrong in that direction costs a post you
+ *     scroll past; being wrong the other way hides one, silently.
  *
  * Pure: no DOM, no `chrome`, no network. Everything here takes a string.
  */
@@ -49,13 +57,55 @@ import { QUIET_CATEGORY } from '../constants.js';
  */
 export const HEADER_LOOKBACK = 2;
 
+/** Lines from the top of an item that can hold a bare "Promoted". */
+export const PROMOTED_LOOKAHEAD = 6;
+
+/** Lines from the top of an item that can hold the Follow button. */
+export const FOLLOW_LOOKAHEAD = 7;
+
+/* ================================================================== */
+/*  The author block                                                  */
+/* ================================================================== */
+
+/** A person: the connection degree, or `Following` on a page you follow. */
+const DEGREE_RE = /[•·]\s*(?:1st|2nd|3rd\+?|Following)\b/i;
+
 /**
- * The author block: a connection degree, or `Following` for a page.
+ * A page: its follower count, on a line of its own.
  *
- * `•` is what LinkedIn uses; `·` is accepted because the two are trivially
- * confused and the degree word after it is what actually decides.
+ * Company and newsletter posts carry no degree marker at all — this is their
+ * author block, and without it every promoted page post reads as "not a post".
+ * Anchored at both ends so "Software · 1,234 followers" in a sidebar module is
+ * not mistaken for one.
  */
-const AUTHOR_BLOCK_RE = /[•·]\s*(?:1st|2nd|3rd\+?|Following)\b/i;
+const FOLLOWERS_RE = /^\d[\d,.]*\s*[KMkm]?\s+followers$/;
+
+/**
+ * The post's own age, which every post has and nothing else does.
+ *
+ * `1d •`, `3h •`, `1w • Edited •`. The bullet immediately after the age is what
+ * makes this safe to look for: it is the separator LinkedIn puts between the
+ * age and the visibility icon, not something a sentence produces.
+ */
+const AGE_RE = /^\d+\s*(?:s|m|h|d|w|mo|y|hr|hrs|min|mins)\b\s*[•·]/i;
+
+/** Any of the three. One of these lines, and the item is a post. */
+const isAuthorBlock = (line) =>
+  DEGREE_RE.test(line) || FOLLOWERS_RE.test(line) || AGE_RE.test(line);
+
+/**
+ * True when the author-block line holds no name, so the name is the line above.
+ *
+ * `Marcus Webb • 2nd` carries its own name and everything above it is fair
+ * game; a bare `• 2nd`, `10,927 followers` or `1w • Edited •` does not, and the
+ * line above it is the author's name rather than a header.
+ */
+const isMarkerOnly = (line) =>
+  /^[•·]/.test(line) || FOLLOWERS_RE.test(line) || AGE_RE.test(line);
+
+/* ================================================================== */
+/*  The other three signals                                           */
+/* ================================================================== */
 
 /** The screen-reader prefix, when it is there. Stripped before anything else. */
 const FEED_POST_PREFIX_RE = /^feed post(?:\s+number\s+\d+)?$/i;
@@ -63,11 +113,27 @@ const FEED_POST_PREFIX_RE = /^feed post(?:\s+number\s+\d+)?$/i;
 /**
  * Things that are emphatically not posts, recognised by their own first line.
  *
- * The author-block rule already excludes all of these — none of them carries a
- * degree marker — but they are the exact things a bug in this file would hide,
+ * The author-block rule already excludes all of these — none of them carries an
+ * author block — but they are the exact things a bug in this file would hide,
  * so they are named out loud and checked first.
  */
 const NON_POST_RE = /^(?:start a post|draft\b|create a post|share a post|add a post)/i;
+
+/** An ad. A whole line, on its own — "Promoted" inside a post is body text. */
+const PROMOTED_RE = /^promoted$/i;
+
+/**
+ * The Follow button, as a line of its own.
+ *
+ * Only ever drawn for an author you do not follow. A `Following` line, or no
+ * button at all, means you do follow them — so only the bare word counts, and
+ * `Follow` inside a longer line ("Follow us on…", "Follow-up") does not.
+ */
+const FOLLOW_BUTTON_RE = /^\+?\s*follow$/i;
+
+/* ================================================================== */
+/*  Headers                                                           */
+/* ================================================================== */
 
 /**
  * `<somebody>`, optionally with the "and 3 others" that LinkedIn adds when a
@@ -96,11 +162,11 @@ const REPOST_RE = new RegExp(`^${WHO}\\s+reposted(?:\\s+this)?$`, 'i');
 /** `Followed by <Name>` — a person one of your connections follows. */
 const FOLLOWED_BY_RE = /^followed by\s+.+$/i;
 
+/** `<Who> follows this page` — the same statement about a company. */
+const FOLLOWS_PAGE_RE = new RegExp(`^${WHO}\\s+follows\\s+this\\s+page$`, 'i');
+
 /** LinkedIn's own recommendation. Its own word, on its own line. */
 const SUGGESTED_RE = /^suggested(?:\s+(?:post|for you))?$/i;
-
-/** An ad. Its own word, on its own line — "Promoted" inside a post is body text. */
-const PROMOTED_RE = /^promoted$/i;
 
 /**
  * The rest of the "somebody you know did something" headers, named one by one.
@@ -125,6 +191,7 @@ const HEADER_RULES = [
   [PROMOTED_RE, QUIET_CATEGORY.PROMOTED],
   [SUGGESTED_RE, QUIET_CATEGORY.SUGGESTED],
   [FOLLOWED_BY_RE, QUIET_CATEGORY.FOLLOWED_BY],
+  [FOLLOWS_PAGE_RE, QUIET_CATEGORY.FOLLOWED_BY],
   [REPOST_RE, QUIET_CATEGORY.REPOST],
   [COMMENT_RE, QUIET_CATEGORY.COMMENT],
   [REACTION_RE, QUIET_CATEGORY.REACTION],
@@ -151,53 +218,68 @@ export function lines(text) {
 }
 
 /**
- * Where the author block starts, or `-1` if there is no author block and this
- * therefore is not a post.
+ * Where the author block starts, or `-1` if there is none and this therefore is
+ * not a post.
  *
  * @param {string[]} rows
  * @returns {number}
  */
 export function authorBlockIndex(rows) {
-  return rows.findIndex((line) => AUTHOR_BLOCK_RE.test(line));
+  return rows.findIndex(isAuthorBlock);
 }
 
 /**
- * Split an item into "lines that could be a header" and "the author block and
- * everything under it".
+ * Split an item into "lines that could be a header" and the rest.
  *
- * The degree marker turns up in two shapes depending on how the name and the
- * distance are laid out, and the difference decides how many lines above it
- * belong to the author rather than to a header:
+ * `headerEnd` is an exclusive upper bound. It is one line short of the author
+ * block whenever that block is a bare marker, because the line immediately
+ * above a bare marker is the author's own name:
  *
- *     Priya Raman likes this      Priya Raman likes this
- *     Marcus Webb            vs   Marcus Webb • 2nd
- *     • 2nd                       Head of Data at Northwind
+ *     Priya Raman likes this        The Agency Blueprint      Marcus Webb • 2nd
+ *     Marcus Webb                   10,927 followers          Head of Data
+ *     • 2nd                         Promoted
  *
- * On the left the name is its own line, so the header can only be what sits
- * *above* the name. On the right the marker line already contains the name, so
- * everything above it is fair game. Getting this wrong in the timid direction
- * costs a post shown; getting it wrong the other way hides one.
+ * On the left and in the middle the name is its own line, so only what is above
+ * the name can be a header — which is what keeps a page called "Everyone Loves
+ * This" from reading as somebody's reaction. On the right the marker line
+ * already carries the name, so everything above it is fair game.
  *
  * @param {string} text
- * @returns {{rows: string[], author: number, headerEnd: number}} `headerEnd` is
- *   an exclusive upper bound: rows below it can never be a header.
+ * @returns {{rows: string[], author: number, headerEnd: number}}
  */
 function read(text) {
   const rows = lines(text);
   const author = authorBlockIndex(rows);
   if (author === -1) return { rows, author, headerEnd: 0 };
-  const nameIsOwnLine = /^[•·]/.test(rows[author]);
-  return { rows, author, headerEnd: Math.max(0, nameIsOwnLine ? author - 1 : author) };
+  return {
+    rows,
+    author,
+    headerEnd: Math.max(0, isMarkerOnly(rows[author]) ? author - 1 : author),
+  };
+}
+
+/** Is there a bare "Promoted" up where the author block is, rather than in the post? */
+function isPromoted(rows, author) {
+  const limit = Math.min(rows.length, PROMOTED_LOOKAHEAD, author + 3);
+  for (let i = 0; i < limit; i += 1) if (PROMOTED_RE.test(rows[i])) return true;
+  return false;
+}
+
+/** Is there a Follow button up where the author block is — i.e. you do not follow them? */
+function hasFollowButton(rows, author) {
+  const limit = Math.min(rows.length, FOLLOW_LOOKAHEAD, author + 5);
+  for (let i = 0; i < limit; i += 1) if (FOLLOW_BUTTON_RE.test(rows[i])) return true;
+  return false;
 }
 
 /**
  * The header line of a post, or `null`.
  *
  * `null` means one of four things, and the caller does not need to tell them
- * apart because all four end in "leave it alone": it is not a post at all; it
- * is a post from somebody you follow, so there is nothing above the author; the
- * line above the author is the author's own name repeated; or that line is a
- * header no rule here recognises.
+ * apart because all four end in "do not hide it for this reason": it is not a
+ * post at all; it is a post with nothing above the author; the line above the
+ * author is the author's own name repeated; or that line is a header no rule
+ * here recognises.
  *
  * @param {string} text a post container's `innerText`
  * @returns {string|null}
@@ -222,6 +304,11 @@ export function extractHeader(text) {
 /**
  * What a feed item is.
  *
+ * The order is the precedence, and it was decided by what a reader would want
+ * told first: an ad is an ad however it reached you, a header says who put this
+ * in front of you, and a Follow button is only consulted when nothing else
+ * explained the post.
+ *
  * @param {string} text a post container's `innerText`
  * @returns {string} one of `QUIET_CATEGORY`
  */
@@ -231,13 +318,16 @@ export function classifyPost(text) {
   if (NON_POST_RE.test(rows[0])) return QUIET_CATEGORY.UNKNOWN;
   if (author === -1) return QUIET_CATEGORY.UNKNOWN;
 
-  const header = extractHeader(text);
-  if (header === null) return QUIET_CATEGORY.DIRECT;
+  if (isPromoted(rows, author)) return QUIET_CATEGORY.PROMOTED;
 
-  for (const [pattern, category] of HEADER_RULES) {
-    if (pattern.test(header)) return category;
+  const header = extractHeader(text);
+  if (header !== null) {
+    for (const [pattern, category] of HEADER_RULES) {
+      if (pattern.test(header)) return category;
+    }
   }
-  /* Unreachable: `extractHeader` only returns lines a rule matched. Shown, if
-     it ever happens, because that is the safe way to be wrong. */
+
+  if (hasFollowButton(rows, author)) return QUIET_CATEGORY.NOT_FOLLOWED;
+
   return QUIET_CATEGORY.DIRECT;
 }

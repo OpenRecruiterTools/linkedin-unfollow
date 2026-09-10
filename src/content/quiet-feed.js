@@ -37,6 +37,7 @@
 import {
   ACTIVITY_CATEGORIES,
   HIDEABLE_CATEGORIES,
+  QUIET_CATEGORY,
   MESSAGES,
   QUIET_FEED_DAYS_KEPT,
   QUIET_FEED_DEFAULTS,
@@ -78,31 +79,42 @@ export const SEEN_CAP = 5000;
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** Per-category counts → the three numbers the banner actually says. */
+/**
+ * Per-category counts → the four numbers the banner actually says.
+ *
+ * `suggested` and `not-followed` share a tick box but are counted apart: "5
+ * from people you don't follow" is a different sentence from "5 suggested", and
+ * on an emptied feed it is the bigger of the two by a distance.
+ */
 export function groupCounts(counts) {
   const sum = (categories) => categories.reduce((n, c) => n + (Number(counts[c]) || 0), 0);
   return {
     activity: sum(ACTIVITY_CATEGORIES),
-    promoted: Number(counts.promoted) || 0,
-    suggested: Number(counts.suggested) || 0,
+    promoted: Number(counts[QUIET_CATEGORY.PROMOTED]) || 0,
+    suggested: Number(counts[QUIET_CATEGORY.SUGGESTED]) || 0,
+    notFollowed: Number(counts[QUIET_CATEGORY.NOT_FOLLOWED]) || 0,
     total: sum(HIDEABLE_CATEGORIES),
   };
 }
 
 /**
- * "Quiet feed: hid 23 posts (18 from your network's activity, 3 promoted, 2
- * suggested)."
+ * "Quiet feed: hid 12 posts (4 network activity, 3 promoted, 5 from people you
+ * don't follow)."
+ *
+ * Only the groups that actually happened are named, so the line stays short on
+ * a feed where one of them dominates.
  *
  * @param {object} counts per-category counts
  * @param {boolean} [revealed] whether "Show them" is currently on
  * @returns {string}
  */
 export function bannerText(counts, revealed = false) {
-  const { activity, promoted, suggested, total } = groupCounts(counts);
+  const { activity, promoted, suggested, notFollowed, total } = groupCounts(counts);
   const parts = [];
-  if (activity) parts.push(`${activity} from your network’s activity`);
+  if (activity) parts.push(`${activity} network activity`);
   if (promoted) parts.push(`${promoted} promoted`);
   if (suggested) parts.push(`${suggested} suggested`);
+  if (notFollowed) parts.push(`${notFollowed} from people you don’t follow`);
   const detail = parts.length ? ` (${parts.join(', ')})` : '';
   return revealed
     ? `Quiet feed: showing ${plural(total, 'post')} it had hidden${detail}.`

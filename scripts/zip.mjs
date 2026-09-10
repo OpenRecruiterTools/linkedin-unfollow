@@ -100,16 +100,19 @@ commented on and reposted - plus its suggestions and its ads. None of that is
 anything you subscribed to, and there is no setting on the site for it.
 
 So the popup has a second card, above the unfollow one, with a master switch
-and three tick boxes: network activity, promoted, suggested. All four are on to
-begin with. On the feed itself, each post that arrives with a header line above
-the author ("Priya likes this", "Priya reposted this", "Suggested",
-"Promoted") is hidden, and a single grey line at the top says how many went and
-offers "Show them" to put them all back for that page load.
+and three tick boxes: network activity, promoted, and suggested-or-not-followed.
+All four are on to begin with. On the feed itself a post goes if it carries a
+header line above the author ("Priya likes this", "Priya reposted this",
+"Followed by Priya", "Suggested"), or a line that is exactly "Promoted", or a
+standalone "Follow" button - which LinkedIn only draws when you do not already
+follow the author, making it an unlabelled suggestion. A single grey line at the
+top says how many went and offers "Show them" to put them all back for that page
+load.
 
-Posts from people you actually follow have no such header, and they stay. So
-does anything it cannot read confidently: the composer, the draft box, the
-"Start a post" card, and any header form it has not been taught. It hides only
-what it positively recognised.
+Posts from people you actually follow have none of those, and they stay. So does
+anything it cannot read confidently: the composer, the draft box, the "Start a
+post" card, "Add to your feed", the sort control, and any header form it has not
+been taught. It hides only what it positively recognised.
 
 Nothing is deleted and nothing is sent. It adds one CSS class to posts already
 in your browser; LinkedIn is not told, and the count in the popup is a number

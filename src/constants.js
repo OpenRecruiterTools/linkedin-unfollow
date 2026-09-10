@@ -138,6 +138,15 @@ export const QUIET_CATEGORY = Object.freeze({
   REPOST: 'repost',
   FOLLOWED_BY: 'followed-by',
   OTHER_ACTIVITY: 'other-activity',
+  /**
+   * A post carrying a Follow button — an unlabelled suggestion.
+   *
+   * LinkedIn only draws that button when you do not already follow the author,
+   * so its presence is the same statement "Suggested" makes, without the word.
+   * It is the largest category on a feed you have just emptied, and it is the
+   * one that has no header at all.
+   */
+  NOT_FOLLOWED: 'not-followed',
   DIRECT: 'direct',
   UNKNOWN: 'unknown',
 });
@@ -156,6 +165,7 @@ export const HIDEABLE_CATEGORIES = Object.freeze([
   ...ACTIVITY_CATEGORIES,
   QUIET_CATEGORY.PROMOTED,
   QUIET_CATEGORY.SUGGESTED,
+  QUIET_CATEGORY.NOT_FOLLOWED,
 ]);
 
 /** Which tick box governs which category. */
@@ -172,7 +182,11 @@ export const QUIET_GROUP = Object.freeze({
  */
 export function quietGroupOf(category) {
   if (category === QUIET_CATEGORY.PROMOTED) return QUIET_GROUP.PROMOTED;
-  if (category === QUIET_CATEGORY.SUGGESTED) return QUIET_GROUP.SUGGESTED;
+  // A labelled suggestion and an unlabelled one are the same thing to a reader,
+  // so one tick box governs both.
+  if (category === QUIET_CATEGORY.SUGGESTED || category === QUIET_CATEGORY.NOT_FOLLOWED) {
+    return QUIET_GROUP.SUGGESTED;
+  }
   if (ACTIVITY_CATEGORIES.includes(category)) return QUIET_GROUP.ACTIVITY;
   return null;
 }

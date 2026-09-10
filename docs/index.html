@@ -334,7 +334,7 @@
         >Download for Chrome</a
       >
       <p class="under-button">
-        Chrome, Edge, Brave or any Chromium browser · ~54 KB ·
+        Chrome, Edge, Brave or any Chromium browser · ~56 KB ·
         <a href="https://github.com/OpenRecruiterTools/linkedin-unfollow">source on GitHub</a>
       </p>
     </header>
@@ -479,28 +479,48 @@
             <td>somebody a connection follows</td>
           </tr>
           <tr>
+            <th>"Priya follows this page"</th>
+            <td>somebody a connection follows</td>
+          </tr>
+          <tr>
             <th>"Suggested" · "Promoted"</th>
             <td>LinkedIn's own recommendation, and an ad</td>
           </tr>
           <tr>
-            <th>no header at all</th>
+            <th>a <strong>Follow</strong> button on the post, and no header</th>
+            <td>somebody you don't follow — an unlabelled suggestion</td>
+          </tr>
+          <tr>
+            <th>none of the above</th>
             <td>somebody you follow — this is what stays</td>
           </tr>
         </table>
         <p>
-          That header is all it goes on. LinkedIn's markup has no stable class names, so the
-          classifier reads the rendered text of each post and matches the line above the author
-          against the list above. Everything unclear is left alone: an item with no author block is
-          not a post as far as this is concerned — that is the composer, the draft box, the "Start a
-          post" card — and a header form it has not been taught falls through to <em>shown</em>. It
-          hides only what it positively recognised.
+          That last row took a second pass against the live feed to find. LinkedIn only draws a
+          <strong>Follow</strong> button on a post when you do <em>not</em> already follow its
+          author, which makes it the same statement "Suggested" makes without the word — and on a
+          feed you have just emptied it is the largest category there is. Ads on company pages,
+          meanwhile, put "Promoted" <em>under</em> the page name rather than above it, and company
+          posts carry no connection-degree marker at all: their author block is a bare follower
+          count.
+        </p>
+        <p>
+          LinkedIn's markup has no stable class names, so all of this is read off the rendered text
+          of the post. Everything unclear is left alone: an item with no author block — a degree
+          marker, a follower count, or the post's own age — is not a post as far as this is
+          concerned, which is the composer, the draft box, the "Start a post" card, "Add to your
+          feed" and the sort control; a header form it has not been taught falls through to
+          <em>shown</em>; and a <strong>Follow</strong> button only counts as one when it is a line
+          of its own up where the author is, so "Follow us on Instagram" in somebody's post is not
+          one. It hides only what it positively recognised.
         </p>
         <p class="note">
           A master switch and three tick boxes sit in the popup, above the unfollow card, all four on
-          to begin with. One grey line at the top of the feed says what it did — "Quiet feed: hid 23
-          posts (18 from your network's activity, 3 promoted, 2 suggested). Show them" — and
-          <strong>Show them</strong> puts every one of them back for that page load. Nothing is
-          deleted and nothing is sent: it adds one CSS class to posts already in your browser.
+          to begin with: network activity, promoted, and suggested-or-not-followed. One grey line at
+          the top of the feed says what it did — "Quiet feed: hid 12 posts (4 network activity, 3
+          promoted, 5 from people you don't follow). Show them" — and <strong>Show them</strong>
+          puts every one of them back for that page load. Nothing is deleted and nothing is sent: it
+          adds one CSS class to posts already in your browser.
         </p>
       </div>
 

@@ -263,3 +263,195 @@ describe('what it refuses to touch', () => {
     expect(extractHeader(text)).toBe(null);
   });
 });
+
+/* ================================================================== */
+/*  The live feed                                                     */
+/* ================================================================== */
+
+/**
+ * Five layouts taken off the real home feed after unfollowing everyone, with
+ * the names replaced. The first three were misses on the first pass, and each
+ * one is a different reason "a header above the author" was not enough: a page
+ * has no degree marker, "Promoted" sits *below* a page's name rather than above
+ * it, and the largest category of all carries no header whatsoever.
+ */
+describe('layouts observed on the live feed', () => {
+  it('reads a promoted page post — no degree marker, "Promoted" below the name', () => {
+    const text = [
+      'Feed post',
+      'The Agency Blueprint',
+      '10,927 followers',
+      'Promoted',
+      'If I lost my agency tomorrow, here is what I would do first…',
+    ].join('\n');
+
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.PROMOTED);
+  });
+
+  it('counts a follower line as an author block whatever shape the number is', () => {
+    const shapes = ['10,927 followers', '248,166 followers', '12K followers', '1.4M followers'];
+    for (const followers of shapes) {
+      const text = ['Feed post', 'Vellum Ltd', followers, 'A thought.'].join('\n');
+      expect(authorBlockIndex(lines(text))).toBe(1);
+      expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+    }
+  });
+
+  it('reads "<Name> follows this page" over a promoted page as promoted — the ad wins', () => {
+    const text = [
+      'Feed post',
+      'Dale Walden follows this page',
+      'Web Summit',
+      '248,166 followers',
+      'Promoted',
+      'Join us in Lisbon this November.',
+    ].join('\n');
+
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.PROMOTED);
+    expect(extractHeader(text)).toBe('Dale Walden follows this page');
+  });
+
+  it('reads "<Name> follows this page" on its own as somebody a connection follows', () => {
+    const text = [
+      'Feed post',
+      'Dale Walden follows this page',
+      'Web Summit',
+      '248,166 followers',
+      'Join us in Lisbon this November.',
+    ].join('\n');
+
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.FOLLOWED_BY);
+  });
+
+  it('reads a Follow button as an unlabelled suggestion', () => {
+    const text = [
+      'Feed post',
+      'Aly Moursy',
+      '• 3rd+',
+      'Founder & CEO, Veeza AI (YC F26)',
+      '1d • Edited •',
+      'Follow',
+      'Since I have been in SF the pace of everything has changed…',
+    ].join('\n');
+
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.NOT_FOLLOWED);
+    expect(extractHeader(text)).toBe(null);
+  });
+
+  it('reads "+ Follow" the same way', () => {
+    const text = ['Feed post', 'Aly Moursy', '• 3rd+', 'Founder', '1d •', '+ Follow', 'A post.'];
+    expect(classifyPost(text.join('\n'))).toBe(QUIET_CATEGORY.NOT_FOLLOWED);
+  });
+
+  it('leaves a page you already follow alone — no follower line, no button', () => {
+    const text = [
+      'Feed post',
+      'Ethos BeathChapman',
+      '1w • Edited •',
+      'How long is your notice period, and has anybody ever enforced it?',
+    ].join('\n');
+
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('reads a standalone "Following" as somebody you do follow', () => {
+    const text = ['Feed post', 'Aly Moursy', '• 3rd+', 'Founder', '1d •', 'Following', 'A post.'];
+    expect(classifyPost(text.join('\n'))).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('leaves the user’s own draft and the sort control alone', () => {
+    expect(classifyPost('Draft:\nTired of AI slop in your LinkedIn feed?')).toBe(
+      QUIET_CATEGORY.UNKNOWN,
+    );
+    expect(classifyPost('Sort by: Top')).toBe(QUIET_CATEGORY.UNKNOWN);
+  });
+
+  it('counts the post’s own age as an author block, so a page post is a post', () => {
+    for (const age of ['1d •', '3h •', '1w • Edited •', '2mo •', '45m •']) {
+      const text = ['Feed post', 'Ethos BeathChapman', age, 'A thought.'].join('\n');
+      expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+      expect(authorBlockIndex(lines(text))).toBe(1);
+    }
+  });
+});
+
+/* ================================================================== */
+/*  The signals that are not headers                                  */
+/* ================================================================== */
+
+describe('“Promoted” and the Follow button', () => {
+  /** A post by somebody you do not follow, with `extra` where the button sits. */
+  const withLine = (extra) =>
+    ['Feed post', 'Marcus Webb', '• 2nd', 'Head of Data', '1d •', extra, 'A post.'].join('\n');
+
+  it('does not read the word "Follow" inside a longer line as a button', () => {
+    for (const line of ['Follow us on Instagram', 'Follow-up call booked', 'Followers: 12']) {
+      expect(classifyPost(withLine(line))).toBe(QUIET_CATEGORY.DIRECT);
+    }
+  });
+
+  it('does not read a Follow button buried in a post’s body as a button', () => {
+    const text = [
+      'Feed post',
+      'Marcus Webb',
+      '• 2nd',
+      'Head of Data at Northwind',
+      '1d •',
+      'A long thought about hiring.',
+      'Line two.',
+      'Follow',
+    ].join('\n');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('does not read "Promoted" further down a post as an ad', () => {
+    const text = [
+      'Feed post',
+      'Marcus Webb',
+      '• 2nd',
+      'Head of Data at Northwind',
+      '1d •',
+      'We just promoted three people.',
+      'Promoted',
+    ].join('\n');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('leaves the "Add to your feed" module alone, Follow button and all', () => {
+    expect(classifyPost('Add to your feed\nNorthwind Analytics\nFollow')).toBe(
+      QUIET_CATEGORY.UNKNOWN,
+    );
+  });
+
+  it('does not read "Software · 1,234 followers" in a sidebar as an author block', () => {
+    expect(classifyPost('Add to your feed\nVellum Ltd\nSoftware · 1,234 followers\nFollow')).toBe(
+      QUIET_CATEGORY.UNKNOWN,
+    );
+  });
+
+  it('prefers the header to the Follow button when a post has both', () => {
+    const text = [
+      'Feed post',
+      'Priya Raman likes this',
+      'Aly Moursy',
+      '• 3rd+',
+      'Founder',
+      '1d •',
+      'Follow',
+      'A post.',
+    ].join('\n');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.REACTION);
+  });
+
+  it('prefers "Promoted" to everything else', () => {
+    const text = [
+      'Feed post',
+      'Priya Raman likes this',
+      'Vellum Ltd',
+      '12K followers',
+      'Promoted',
+      'Buy our thing.',
+    ].join('\n');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.PROMOTED);
+  });
+});

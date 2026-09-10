@@ -68,8 +68,11 @@ export const QUIET_HINT =
 export const QUIET_MASTER_LABEL = 'Hide the posts you did not follow anyone to see';
 export const QUIET_ACTIVITY_LABEL =
   'Network activity — likes, comments, reposts, “followed by”';
+export const QUIET_SUGGESTED_HINT =
+  'LinkedIn only draws a Follow button on a post when you do not follow its author, ' +
+  'which is how the unlabelled suggestions are recognised.';
 export const QUIET_PROMOTED_LABEL = 'Promoted (ads)';
-export const QUIET_SUGGESTED_LABEL = 'Suggested posts';
+export const QUIET_SUGGESTED_LABEL = 'Suggested and people you don’t follow';
 export const QUIET_TOGETHER_LINE =
   'Together with Unfollow everyone, your feed shows only the people you choose to refollow.';
 
@@ -218,7 +221,7 @@ export function quietFeedCard() {
     checkField(QUIET_MASTER_LABEL, master),
     checkField(QUIET_ACTIVITY_LABEL, boxes.activity),
     checkField(QUIET_PROMOTED_LABEL, boxes.promoted),
-    checkField(QUIET_SUGGESTED_LABEL, boxes.suggested),
+    checkField(QUIET_SUGGESTED_LABEL, boxes.suggested, QUIET_SUGGESTED_HINT),
     count,
     el('p', { class: 'hint' }, QUIET_TOGETHER_LINE),
   );

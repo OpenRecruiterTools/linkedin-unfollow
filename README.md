@@ -13,7 +13,7 @@ with what your network liked, commented on and reposted — **Quiet feed** hides
 those in the page too. [See below](#quiet-feed-what-unfollowing-cannot-fix).
 
 [**Download for Chrome →**](https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest/download/linkedin-unfollow.zip)
-(a 54 KB zip from the [latest release](https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest)) ·
+(a 56 KB zip from the [latest release](https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest)) ·
 [Install guide with pictures](https://openrecruitertools.github.io/linkedin-unfollow/)
 
 ---
@@ -117,32 +117,43 @@ Verified on a real account the day after unfollowing everyone: with the
 Following list at zero, every post on the home feed carried a header line above
 the author saying why it was there.
 
-| Header on the post | What it is |
+| What is in the post's first lines | What it is |
 |---|---|
 | "Priya likes this", "celebrates", "loves", "finds this insightful" | somebody's reaction |
 | "Priya commented", "Priya and 3 others commented" | somebody's comment |
 | "Priya reposted this" | somebody's repost |
-| "Followed by Priya" | somebody a connection follows |
+| "Followed by Priya", "Priya follows this page" | somebody a connection follows |
 | "Priya was mentioned…", "Northwind is hiring" | other activity |
 | "Suggested" | LinkedIn's recommendation |
-| "Promoted" | an ad |
-| *no header at all* | **somebody you follow — this is what stays** |
+| "Promoted" — above the name for a person, **below** it for a page | an ad |
+| a **Follow** button on the post, and no header at all | somebody you don't follow — an unlabelled suggestion |
+| *none of the above* | **somebody you follow — this is what stays** |
 
-That header is all it goes on. LinkedIn's markup has no stable class names —
-they are obfuscated on every build — so the classifier reads the rendered text
-of each post, takes the line above the author block, and matches it against the
-list above. Everything else is left alone, and "left alone" is the default in
-every unclear case: a post with no author block is not a post as far as this is
-concerned (that is the composer, the draft box, the "Start a post" card), and a
-header form it has not been taught falls through to *shown*. It hides only what
-it positively recognised.
+Those last two took a second pass against the live feed to find. LinkedIn only
+draws a **Follow** button on a post when you do *not* already follow its author,
+which makes it exactly the statement "Suggested" makes, without the word — and
+on a feed you have just emptied it is the largest category there is. Ads on
+company pages, meanwhile, put "Promoted" *under* the page name rather than above
+it, and company posts carry no connection-degree marker at all: their author
+block is a bare follower count ("10,927 followers").
+
+LinkedIn's markup has no stable class names — they are obfuscated on every
+build — so all of this is read off the rendered text of the post. Everything
+else is left alone, and "left alone" is the default in every unclear case: an
+item with no author block (a degree marker, a follower count, or the post's own
+age) is not a post as far as this is concerned — that is the composer, the
+draft box, the "Start a post" card, "Add to your feed", the sort control — and a
+header form it has not been taught falls through to *shown*. A **Follow** button
+only counts as one when it is a line of its own up where the author is, so
+"Follow us on Instagram" in somebody's post is not one. It hides only what it
+positively recognised.
 
 Turn it on and off in the popup, in the card above the unfollow one: a master
-switch, and three tick boxes for network activity, promoted and suggested. All
-four are on to begin with. At the top of the feed a single grey line says what
-it did — "Quiet feed: hid 23 posts (18 from your network's activity, 3 promoted,
-2 suggested). Show them" — and **Show them** puts every one of them back for
-that page load.
+switch, and three tick boxes — **Network activity**, **Promoted**, and
+**Suggested and people you don't follow**. All four are on to begin with. At the
+top of the feed a single grey line says what it did — "Quiet feed: hid 12 posts
+(4 network activity, 3 promoted, 5 from people you don't follow). Show them" —
+and **Show them** puts every one of them back for that page load.
 
 Nothing is deleted, nothing is sent. It adds one CSS class to posts already in
 your browser; no request is made, LinkedIn is not told, and the count in the
@@ -297,7 +308,7 @@ There is no build step. `src/` is what ships.
 | `src/content/quiet-feed.js` | The content script: find the posts, hide the ones the tick boxes name, draw the line at the top. |
 | `src/content/boot.js` | Three lines, because MV3 will not load a module as a content script. |
 | `src/popup/` | The one screen. |
-| `tests/` | 193 tests. Every fixture is invented; no real person appears in them. |
+| `tests/` | 210 tests. Every fixture is invented; no real person appears in them. |
 
 ---
 
