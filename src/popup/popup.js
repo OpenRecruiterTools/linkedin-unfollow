@@ -73,6 +73,7 @@ export const QUIET_SUGGESTED_HINT =
   'which is how the unlabelled suggestions are recognised.';
 export const QUIET_PROMOTED_LABEL = 'Promoted (ads)';
 export const QUIET_SUGGESTED_LABEL = 'Suggested and people you don’t follow';
+export const QUIET_GROUPS_LABEL = 'Posts in groups you’ve joined';
 export const QUIET_TOGETHER_LINE =
   'Together with Unfollow everyone, your feed shows only the people you choose to refollow.';
 
@@ -174,6 +175,10 @@ export function quietFeedCard() {
       'data-testid': 'quiet-suggested',
       checked: QUIET_FEED_DEFAULTS.suggested,
     }),
+    groups: checkbox({
+      'data-testid': 'quiet-groups',
+      checked: QUIET_FEED_DEFAULTS.groups,
+    }),
   };
 
   const count = el('p', { class: 'status', 'data-testid': 'quiet-count' }, hiddenTodayLine(0));
@@ -188,6 +193,7 @@ export function quietFeedCard() {
     activity: boxes.activity.checked,
     promoted: boxes.promoted.checked,
     suggested: boxes.suggested.checked,
+    groups: boxes.groups.checked,
   });
 
   const save = async () => {
@@ -222,6 +228,7 @@ export function quietFeedCard() {
     checkField(QUIET_ACTIVITY_LABEL, boxes.activity),
     checkField(QUIET_PROMOTED_LABEL, boxes.promoted),
     checkField(QUIET_SUGGESTED_LABEL, boxes.suggested, QUIET_SUGGESTED_HINT),
+    checkField(QUIET_GROUPS_LABEL, boxes.groups),
     count,
     el('p', { class: 'hint' }, QUIET_TOGETHER_LINE),
   );

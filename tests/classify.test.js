@@ -15,7 +15,13 @@
 import { describe, it, expect } from 'vitest';
 
 import { QUIET_CATEGORY } from '../src/constants.js';
-import { classifyPost, extractHeader, authorBlockIndex, lines } from '../src/content/classify.js';
+import {
+  GROUP_NAME_MAX,
+  authorBlockIndex,
+  classifyPost,
+  extractHeader,
+  lines,
+} from '../src/content/classify.js';
 
 /**
  * A post as `innerText` gives it: screen-reader prefix, optional header, author
@@ -97,7 +103,15 @@ describe('the headers LinkedIn puts above other people’s posts', () => {
 
   it('reads a suggestion', () => {
     expect(classifyPost(post({ header: 'Suggested' }))).toBe(QUIET_CATEGORY.SUGGESTED);
-    expect(classifyPost(post({ header: 'Suggested for you' }))).toBe(QUIET_CATEGORY.SUGGESTED);
+  });
+
+  // "Suggested for you" is a module's own name, so it is read as one wherever it
+  // appears. Both categories sit under the same tick box, so nothing changes for
+  // a reader — only which number the banner puts it in.
+  it('reads "Suggested for you" as the module heading it is', () => {
+    expect(classifyPost(post({ header: 'Suggested for you' }))).toBe(
+      QUIET_CATEGORY.RECOMMENDATION,
+    );
   });
 
   it('reads an ad', () => {
@@ -249,7 +263,6 @@ describe('what it refuses to touch', () => {
 
   it('leaves any list item without an author block alone', () => {
     const items = [
-      'Add to your feed\nNorthwind Analytics\nFollow',
       'Show more feed updates',
       'Sort by: Top\nRecent',
       'Priya Raman likes this', // a header and nothing under it is not a post
@@ -417,16 +430,10 @@ describe('“Promoted” and the Follow button', () => {
     expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
   });
 
-  it('leaves the "Add to your feed" module alone, Follow button and all', () => {
-    expect(classifyPost('Add to your feed\nNorthwind Analytics\nFollow')).toBe(
-      QUIET_CATEGORY.UNKNOWN,
-    );
-  });
-
-  it('does not read "Software · 1,234 followers" in a sidebar as an author block', () => {
-    expect(classifyPost('Add to your feed\nVellum Ltd\nSoftware · 1,234 followers\nFollow')).toBe(
-      QUIET_CATEGORY.UNKNOWN,
-    );
+  it('does not read "Software · 1,234 followers" as an author block', () => {
+    const text = 'Vellum Ltd\nSoftware · 1,234 followers\nFollow';
+    expect(authorBlockIndex(lines(text))).toBe(-1);
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.UNKNOWN);
   });
 
   it('prefers the header to the Follow button when a post has both', () => {
@@ -453,5 +460,126 @@ describe('“Promoted” and the Follow button', () => {
       'Buy our thing.',
     ].join('\n');
     expect(classifyPost(text)).toBe(QUIET_CATEGORY.PROMOTED);
+  });
+});
+
+/* ================================================================== */
+/*  Groups and recommendation modules                                 */
+/* ================================================================== */
+
+/**
+ * The second live run's two leftovers. Neither has a header, and neither could
+ * be reached by any rule that starts from one.
+ *
+ * A group post announces the group where a header would go and then runs the
+ * author's name and degree together on one line. A recommendation module is not
+ * a post at all — no author, no author block — and says so in its first line.
+ */
+describe('posts in groups you have joined', () => {
+  const groupPost = (group, author, degree = '• 3rd+', age = '1h • Edited •') =>
+    ['Feed post', group, `${author} ${degree}`, age, 'A thought about hiring.'].join('\n');
+
+  it('reads a group post by its group name over an inline author line', () => {
+    expect(classifyPost(groupPost('The Recruitment Network', 'Tariq Mahmood'))).toBe(
+      QUIET_CATEGORY.GROUP,
+    );
+    expect(classifyPost(groupPost('The Recruiter Network', 'Marcel Kruger', '• 2nd', '7h •'))).toBe(
+      QUIET_CATEGORY.GROUP,
+    );
+  });
+
+  it('does not read a plain person’s post as a group post', () => {
+    // The tell is the shape: name on its own line, bare degree under it.
+    const plain = ['Feed post', 'Yunfan Ye', '• 3rd+', 'Engineer', '1h •', 'A post.'].join('\n');
+    expect(classifyPost(plain)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('does not read an inline author line with nothing above it as a group post', () => {
+    const inline = ['Feed post', 'Marcus Webb • 2nd', 'Head of Data', '1d •', 'A post.'].join('\n');
+    expect(classifyPost(inline)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('prefers a real header to the group rule', () => {
+    const text = [
+      'Feed post',
+      'Priya Raman likes this',
+      'Marcus Webb • 2nd',
+      '1d •',
+      'A post.',
+    ].join('\n');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.REACTION);
+  });
+
+  it('prefers "Promoted" to the group rule', () => {
+    const text = ['Feed post', 'Vellum Ltd', 'Marcus Webb • 2nd', 'Promoted', 'Buy this.'].join(
+      '\n',
+    );
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.PROMOTED);
+  });
+
+  it('does not take a paragraph of prose for a group name', () => {
+    const prose = 'x'.repeat(GROUP_NAME_MAX + 1);
+    const text = ['Feed post', prose, 'Marcus Webb • 2nd', '1d •', 'A post.'].join('\n');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+});
+
+describe('recommendation modules', () => {
+  const headings = [
+    'Jobs recommended for you',
+    'Recommended for you',
+    'People you may know',
+    'Add to your feed',
+    'Suggested for you',
+    'Trending now',
+  ];
+
+  for (const heading of headings) {
+    it(`reads "${heading}" as a recommendation`, () => {
+      const text = ['Feed post', heading, 'Jane Roe', '15k+ | HR Specialist', 'Follow'].join('\n');
+      expect(classifyPost(text)).toBe(QUIET_CATEGORY.RECOMMENDATION);
+    });
+  }
+
+  it('reads the jobs module, which has no author of any kind', () => {
+    const text = [
+      'Feed post',
+      'Jobs recommended for you',
+      'AI Engineer (Agents)',
+      'Vellum Ltd · Remote',
+    ].join('\n');
+    expect(authorBlockIndex(lines(text))).toBe(-1);
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.RECOMMENDATION);
+  });
+
+  it('reads it with or without the "Feed post" prefix', () => {
+    expect(classifyPost('Add to your feed\nNorthwind Analytics\nFollow')).toBe(
+      QUIET_CATEGORY.RECOMMENDATION,
+    );
+  });
+
+  it('wants the whole line, not a phrase inside somebody’s post', () => {
+    const text = [
+      'Feed post',
+      'Marcus Webb',
+      '• 2nd',
+      'Head of Data',
+      '1d •',
+      'Recommended for you: three books I finished this month.',
+    ].join('\n');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('is not fooled by a heading further down the item', () => {
+    const text = ['Feed post', 'Marcus Webb', '• 2nd', '1d •', 'People you may know'].join('\n');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('still leaves the draft box, the composer and the sort control alone', () => {
+    expect(classifyPost('Draft:\nTired of AI slop in your LinkedIn feed?')).toBe(
+      QUIET_CATEGORY.UNKNOWN,
+    );
+    expect(classifyPost('Start a post\nVideo\nPhoto\nWrite article')).toBe(QUIET_CATEGORY.UNKNOWN);
+    expect(classifyPost('Sort by: Top\nRecent')).toBe(QUIET_CATEGORY.UNKNOWN);
   });
 });

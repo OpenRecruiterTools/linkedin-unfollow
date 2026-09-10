@@ -26,6 +26,7 @@ import {
   FAST_LABEL,
   FORMATIX_URL,
   QUIET_ACTIVITY_LABEL,
+  QUIET_GROUPS_LABEL,
   QUIET_MASTER_LABEL,
   QUIET_PROMOTED_LABEL,
   QUIET_SUGGESTED_LABEL,
@@ -492,7 +493,7 @@ describe('progress', () => {
 
 describe('the quiet feed card', () => {
   /** The three category boxes, in the order they are drawn. */
-  const CATEGORY_BOXES = ['quiet-activity', 'quiet-promoted', 'quiet-suggested'];
+  const CATEGORY_BOXES = ['quiet-activity', 'quiet-promoted', 'quiet-suggested', 'quiet-groups'];
 
   it('sits above the unfollow card, with everything on', async () => {
     serveWorker({});
@@ -517,6 +518,7 @@ describe('the quiet feed card', () => {
       QUIET_ACTIVITY_LABEL,
       QUIET_PROMOTED_LABEL,
       QUIET_SUGGESTED_LABEL,
+      QUIET_GROUPS_LABEL,
       QUIET_TOGETHER_LINE,
     ]) {
       expect(container.textContent).toContain(label);
@@ -538,6 +540,7 @@ describe('the quiet feed card', () => {
       activity: true,
       promoted: false,
       suggested: true,
+      groups: true,
     });
   });
 

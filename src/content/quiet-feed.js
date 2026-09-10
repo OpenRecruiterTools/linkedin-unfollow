@@ -66,6 +66,16 @@ export const DEBOUNCE_MS = 150;
 export const PERSIST_DEBOUNCE_MS = 500;
 
 /**
+ * Posts classified inside a single observer callback before the rest are left
+ * to the debounced sweep.
+ *
+ * Each one costs an `innerText`, which forces layout. Twenty is more than a
+ * screenful, and a feed that inserts more than that at once is a feed nobody is
+ * reading yet.
+ */
+export const SYNC_PAINT_MAX = 20;
+
+/**
  * Component keys remembered before the set is dropped.
  *
  * Only used to stop a recycled container being counted twice, so forgetting is
@@ -92,7 +102,9 @@ export function groupCounts(counts) {
     activity: sum(ACTIVITY_CATEGORIES),
     promoted: Number(counts[QUIET_CATEGORY.PROMOTED]) || 0,
     suggested: Number(counts[QUIET_CATEGORY.SUGGESTED]) || 0,
+    recommendations: Number(counts[QUIET_CATEGORY.RECOMMENDATION]) || 0,
     notFollowed: Number(counts[QUIET_CATEGORY.NOT_FOLLOWED]) || 0,
+    groups: Number(counts[QUIET_CATEGORY.GROUP]) || 0,
     total: sum(HIDEABLE_CATEGORIES),
   };
 }
@@ -109,12 +121,15 @@ export function groupCounts(counts) {
  * @returns {string}
  */
 export function bannerText(counts, revealed = false) {
-  const { activity, promoted, suggested, notFollowed, total } = groupCounts(counts);
+  const { activity, promoted, suggested, recommendations, notFollowed, groups, total } =
+    groupCounts(counts);
   const parts = [];
   if (activity) parts.push(`${activity} network activity`);
   if (promoted) parts.push(`${promoted} promoted`);
   if (suggested) parts.push(`${suggested} suggested`);
+  if (recommendations) parts.push(`${recommendations} recommendation${recommendations === 1 ? '' : 's'}`);
   if (notFollowed) parts.push(`${notFollowed} from people you don’t follow`);
+  if (groups) parts.push(`${groups} from groups`);
   const detail = parts.length ? ` (${parts.join(', ')})` : '';
   return revealed
     ? `Quiet feed: showing ${plural(total, 'post')} it had hidden${detail}.`
@@ -332,20 +347,25 @@ export function createQuietFeed(opts = {}) {
   }
 
   /**
-   * Classify what is new, hide what the tick boxes say to hide, redraw the line
-   * at the top. Cheap enough to run on every batch of mutations.
+   * Classify these containers and hide the ones the tick boxes name.
+   *
+   * Every read happens before every write. `innerText` is the property that
+   * forces layout, so reading it and then writing a class and then reading the
+   * next one would make the browser lay the page out once per post; done in two
+   * passes it lays out once for the batch.
+   *
+   * @param {Element[]} nodes
+   * @returns {boolean} whether anything was counted
    */
-  function run() {
-    if (!doc) return;
-    if (!isFeed()) {
-      unpaint();
-      return;
+  function paintNodes(nodes) {
+    const pending = [];
+    for (const node of nodes) {
+      const marked = node.getAttribute(MARK_ATTR);
+      pending.push([node, marked || classifyPost(textOf(node)), !marked]);
     }
     let counted = false;
-    for (const node of containers()) {
-      let category = node.getAttribute(MARK_ATTR);
-      if (!category) {
-        category = classifyPost(textOf(node));
+    for (const [node, category, isFirstSight] of pending) {
+      if (isFirstSight) {
         node.setAttribute(MARK_ATTR, category);
         if (HIDEABLE_CATEGORIES.includes(category) && isNew(node)) {
           counts[category] += 1;
@@ -357,8 +377,50 @@ export function createQuietFeed(opts = {}) {
         node.classList.toggle(HIDDEN_CLASS, hide);
       }
     }
+    return counted;
+  }
+
+  /**
+   * The whole feed: classify what is new, hide it, redraw the line at the top.
+   */
+  function run() {
+    if (!doc) return;
+    if (!isFeed()) {
+      unpaint();
+      return;
+    }
+    const counted = paintNodes(containers());
     paintBanner();
     if (counted) schedulePersist();
+  }
+
+  /**
+   * A batch of mutations.
+   *
+   * The posts that were just inserted are classified and hidden **now**, in the
+   * observer callback, so a fast scroll never paints a post for a debounce
+   * before it goes: that flicker is the one thing quiet feed can do that is
+   * worse than not hiding the post at all. Only the banner, the tally and the
+   * sweep for anything missed are put off to `DEBOUNCE_MS`.
+   *
+   * SYNC_PAINT_MAX bounds the work: each unmarked node costs one `innerText`,
+   * and a feed that inserts fifty at once can wait for the rest.
+   *
+   * @param {MutationRecord[]} records
+   */
+  function onMutations(records) {
+    if (doc && isFeed()) {
+      const fresh = [];
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!node || node.nodeType !== 1 || fresh.length >= SYNC_PAINT_MAX) continue;
+          if (node.matches && node.matches(POST_SELECTOR)) fresh.push(node);
+          else if (node.querySelectorAll) fresh.push(...node.querySelectorAll(POST_SELECTOR));
+        }
+      }
+      if (fresh.length && paintNodes(fresh.slice(0, SYNC_PAINT_MAX))) schedulePersist();
+    }
+    schedule();
   }
 
   const schedule = () => {
@@ -404,7 +466,7 @@ export function createQuietFeed(opts = {}) {
 
     const target = doc.body || doc.documentElement;
     if (target && typeof MutationObserver === 'function') {
-      observer = new MutationObserver(schedule);
+      observer = new MutationObserver(onMutations);
       observer.observe(target, { childList: true, subtree: true });
     }
 

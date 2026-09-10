@@ -100,14 +100,16 @@ commented on and reposted - plus its suggestions and its ads. None of that is
 anything you subscribed to, and there is no setting on the site for it.
 
 So the popup has a second card, above the unfollow one, with a master switch
-and three tick boxes: network activity, promoted, and suggested-or-not-followed.
-All four are on to begin with. On the feed itself a post goes if it carries a
-header line above the author ("Priya likes this", "Priya reposted this",
-"Followed by Priya", "Suggested"), or a line that is exactly "Promoted", or a
-standalone "Follow" button - which LinkedIn only draws when you do not already
-follow the author, making it an unlabelled suggestion. A single grey line at the
-top says how many went and offers "Show them" to put them all back for that page
-load.
+and four tick boxes: network activity, promoted, suggested-or-not-followed, and
+posts in groups you have joined. All five are on to begin with. On the feed
+itself a post goes if it carries a header line above the author ("Priya likes
+this", "Priya reposted this", "Followed by Priya", "Suggested"), or a line that
+is exactly "Promoted", or a standalone "Follow" button - which LinkedIn only
+draws when you do not already follow the author, making it an unlabelled
+suggestion - or the shape a group post has, or the name of a recommendation
+module ("Jobs recommended for you", "People you may know") on its first line. A
+single grey line at the top says how many went and offers "Show them" to put
+them all back for that page load.
 
 Posts from people you actually follow have none of those, and they stay. So does
 anything it cannot read confidently: the composer, the draft box, the "Start a

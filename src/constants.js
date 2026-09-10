@@ -147,6 +147,20 @@ export const QUIET_CATEGORY = Object.freeze({
    * one that has no header at all.
    */
   NOT_FOLLOWED: 'not-followed',
+  /**
+   * A post in a group you joined.
+   *
+   * It has no header. What gives it away is the shape of the author block: the
+   * group's name on one line, then the author's name and degree together on the
+   * next (`MuHAMMAD Tariq • 3rd+`). A plain person's post puts the name on its
+   * own line above a bare `• 3rd+`, with nothing above that.
+   */
+  GROUP: 'group',
+  /**
+   * A recommendation module, not a post at all — "Jobs recommended for you",
+   * "People you may know", "Add to your feed". Named by its own first line.
+   */
+  RECOMMENDATION: 'recommendation',
   DIRECT: 'direct',
   UNKNOWN: 'unknown',
 });
@@ -166,6 +180,8 @@ export const HIDEABLE_CATEGORIES = Object.freeze([
   QUIET_CATEGORY.PROMOTED,
   QUIET_CATEGORY.SUGGESTED,
   QUIET_CATEGORY.NOT_FOLLOWED,
+  QUIET_CATEGORY.RECOMMENDATION,
+  QUIET_CATEGORY.GROUP,
 ]);
 
 /** Which tick box governs which category. */
@@ -173,6 +189,7 @@ export const QUIET_GROUP = Object.freeze({
   ACTIVITY: 'activity',
   PROMOTED: 'promoted',
   SUGGESTED: 'suggested',
+  GROUPS: 'groups',
 });
 
 /**
@@ -184,9 +201,14 @@ export function quietGroupOf(category) {
   if (category === QUIET_CATEGORY.PROMOTED) return QUIET_GROUP.PROMOTED;
   // A labelled suggestion and an unlabelled one are the same thing to a reader,
   // so one tick box governs both.
-  if (category === QUIET_CATEGORY.SUGGESTED || category === QUIET_CATEGORY.NOT_FOLLOWED) {
+  if (
+    category === QUIET_CATEGORY.SUGGESTED ||
+    category === QUIET_CATEGORY.NOT_FOLLOWED ||
+    category === QUIET_CATEGORY.RECOMMENDATION
+  ) {
     return QUIET_GROUP.SUGGESTED;
   }
+  if (category === QUIET_CATEGORY.GROUP) return QUIET_GROUP.GROUPS;
   if (ACTIVITY_CATEGORIES.includes(category)) return QUIET_GROUP.ACTIVITY;
   return null;
 }
@@ -203,6 +225,7 @@ export const QUIET_FEED_DEFAULTS = Object.freeze({
   activity: true,
   promoted: true,
   suggested: true,
+  groups: true,
 });
 
 /** Days of counts kept in `quietFeed.hidden`. A week is plenty; it is a curio. */

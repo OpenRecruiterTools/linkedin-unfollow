@@ -23,7 +23,13 @@
  *   3. **A standalone "Follow" button line.** LinkedIn only draws it when you do
  *      not already follow the author, which makes it an unlabelled suggestion —
  *      the biggest category on an emptied feed, and the one with no header.
- *   4. **Nothing** — a post from somebody you actually follow.
+ *   4. **A group name above an inline author line.** A post in a group you
+ *      joined puts the group's name where a header would be and then runs the
+ *      author's name and degree together: `MuHAMMAD Tariq • 3rd+`. A plain
+ *      person's post puts the name on its own line above a bare `• 3rd+`.
+ *   5. **A module's own name on the first line** — "Jobs recommended for you",
+ *      "People you may know". Those are not posts and have no author at all.
+ *   6. **Nothing** — a post from somebody you actually follow.
  *
  * The markup around all of that has no stable class names; LinkedIn obfuscates
  * them on every build and ships `[componentkey]` attributes instead. So this
@@ -62,6 +68,15 @@ export const PROMOTED_LOOKAHEAD = 6;
 
 /** Lines from the top of an item that can hold the Follow button. */
 export const FOLLOW_LOOKAHEAD = 7;
+
+/**
+ * Longest line accepted as a group's name.
+ *
+ * LinkedIn caps group names at 100 characters. The cap is here so a line of
+ * somebody's prose can never be mistaken for one, in the single rule that has
+ * to work off "a line that is not anything else in particular".
+ */
+export const GROUP_NAME_MAX = 120;
 
 /* ================================================================== */
 /*  The author block                                                  */
@@ -121,6 +136,18 @@ const NON_POST_RE = /^(?:start a post|draft\b|create a post|share a post|add a p
 
 /** An ad. A whole line, on its own — "Promoted" inside a post is body text. */
 const PROMOTED_RE = /^promoted$/i;
+
+/**
+ * A recommendation module, by its own first line.
+ *
+ * These are not posts — no author, no author block, nothing to classify by the
+ * usual route, which is why they survived the first two passes. They announce
+ * themselves instead, in a fixed phrase on the line a post's header would
+ * occupy. A closed list, matched whole: "Recommended for you" is a module,
+ * "Recommended for you: three books" would be somebody's post.
+ */
+const RECOMMENDATION_RE =
+  /^(?:jobs recommended for you|recommended for you|people you may know|add to your feed|suggested for you|trending now)$/i;
 
 /**
  * The Follow button, as a line of its own.
@@ -265,6 +292,32 @@ function isPromoted(rows, author) {
   return false;
 }
 
+/**
+ * Is this a post in a group you joined?
+ *
+ * Group posts carry no header. The tell is the shape of the author block — the
+ * author's name and degree share one line, and there is a line above it:
+ *
+ *     The Recruitment Network      vs      Yunfan Ye
+ *     MuHAMMAD Tariq • 3rd+                • 3rd+
+ *     1h • Edited •                        1h •
+ *
+ * On the right the name is its own line, which is what a bare `• 3rd+` means,
+ * and nothing sits above it. On the left something does, and by this point it
+ * has already been ruled out as a header and as "Promoted" — so it is the group
+ * the post was written in.
+ *
+ * @param {string[]} rows
+ * @param {number} author
+ * @param {string|null} header the header already found, if any
+ */
+function isGroupPost(rows, author, header) {
+  if (header !== null || author < 1) return false;
+  if (isMarkerOnly(rows[author])) return false; // the line above is the author's name
+  const above = rows[author - 1];
+  return above.length > 0 && above.length <= GROUP_NAME_MAX;
+}
+
 /** Is there a Follow button up where the author block is — i.e. you do not follow them? */
 function hasFollowButton(rows, author) {
   const limit = Math.min(rows.length, FOLLOW_LOOKAHEAD, author + 5);
@@ -316,6 +369,11 @@ export function classifyPost(text) {
   const { rows, author } = read(text);
   if (!rows.length) return QUIET_CATEGORY.UNKNOWN;
   if (NON_POST_RE.test(rows[0])) return QUIET_CATEGORY.UNKNOWN;
+
+  // Before the author-block gate, because a recommendation module has no author
+  // and would otherwise stay `unknown` for ever.
+  if (RECOMMENDATION_RE.test(rows[0])) return QUIET_CATEGORY.RECOMMENDATION;
+
   if (author === -1) return QUIET_CATEGORY.UNKNOWN;
 
   if (isPromoted(rows, author)) return QUIET_CATEGORY.PROMOTED;
@@ -327,6 +385,7 @@ export function classifyPost(text) {
     }
   }
 
+  if (isGroupPost(rows, author, header)) return QUIET_CATEGORY.GROUP;
   if (hasFollowButton(rows, author)) return QUIET_CATEGORY.NOT_FOLLOWED;
 
   return QUIET_CATEGORY.DIRECT;

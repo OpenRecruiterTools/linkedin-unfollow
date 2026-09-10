@@ -53,7 +53,17 @@ const unfollowedPost = (author = 'Aly Moursy') =>
     '\n',
   );
 
-/** The nine items the tests start from: six hideable, three not. */
+/** A post in a group: the group's name, then the author's name and degree together. */
+const groupPost = (group = 'The Recruitment Network', author = 'Tariq Mahmood') =>
+  ['Feed post', group, `${author} • 3rd+`, '1h • Edited •', body].join('\n');
+
+/** A recommendation module: no author, no author block, its name on line one. */
+const jobsModule = () =>
+  ['Feed post', 'Jobs recommended for you', 'AI Engineer (Agents)', 'Vellum Ltd · Remote'].join(
+    '\n',
+  );
+
+/** The eleven items the tests start from: eight hideable, three not. */
 const FEED = [
   ['start', 'Start a post\nVideo\nPhoto\nWrite article', QUIET_CATEGORY.UNKNOWN],
   ['like', feedPost('Priya Raman likes this'), QUIET_CATEGORY.REACTION],
@@ -63,6 +73,8 @@ const FEED = [
   ['repost', feedPost('Sam Okafor reposted this'), QUIET_CATEGORY.REPOST],
   ['suggested', feedPost('Suggested'), QUIET_CATEGORY.SUGGESTED],
   ['unfollowed', unfollowedPost(), QUIET_CATEGORY.NOT_FOLLOWED],
+  ['group', groupPost(), QUIET_CATEGORY.GROUP],
+  ['jobs', jobsModule(), QUIET_CATEGORY.RECOMMENDATION],
   ['sort', 'Sort by: Top\nRecent', QUIET_CATEGORY.UNKNOWN],
 ];
 
@@ -109,16 +121,18 @@ afterEach(() => {
 /*  What it hides                                                     */
 /* ================================================================== */
 
-describe('a feed of nine', () => {
-  it('hides the six LinkedIn put there and leaves the other three', async () => {
+describe('a feed of eleven', () => {
+  it('hides the eight LinkedIn put there and leaves the other three', async () => {
     const nodes = buildFeed();
     await startQuiet();
 
     expect(hidden().map((n) => n.getAttribute(MARK_ATTR)).sort()).toEqual([
       'comment',
+      'group',
       'not-followed',
       'promoted',
       'reaction',
+      'recommendation',
       'repost',
       'suggested',
     ]);
@@ -154,7 +168,7 @@ describe('a feed of nine', () => {
     expect(banner()).not.toBe(null);
     expect(main.firstChild).toBe(banner());
     expect(banner().firstChild.textContent).toBe(
-      'Quiet feed: hid 6 posts (3 network activity, 1 promoted, 1 suggested, 1 from people you don’t follow).',
+      'Quiet feed: hid 8 posts (3 network activity, 1 promoted, 1 suggested, 1 recommendation, 1 from people you don’t follow, 1 from groups).',
     );
     expect(banner().lastChild.textContent).toBe('Show them');
   });
@@ -178,18 +192,18 @@ describe('“Show them”', () => {
   it('puts every hidden post back for this page load, and takes them away again', async () => {
     const nodes = buildFeed();
     await startQuiet();
-    expect(hidden()).toHaveLength(6);
+    expect(hidden()).toHaveLength(8);
 
     banner().lastChild.click();
     expect(hidden()).toHaveLength(0);
     expect(isHidden(nodes.ad)).toBe(false);
     expect(banner().lastChild.textContent).toBe('Hide them again');
     expect(banner().firstChild.textContent).toBe(
-      'Quiet feed: showing 6 posts it had hidden (3 network activity, 1 promoted, 1 suggested, 1 from people you don’t follow).',
+      'Quiet feed: showing 8 posts it had hidden (3 network activity, 1 promoted, 1 suggested, 1 recommendation, 1 from people you don’t follow, 1 from groups).',
     );
 
     banner().lastChild.click();
-    expect(hidden()).toHaveLength(6);
+    expect(hidden()).toHaveLength(8);
     expect(banner().lastChild.textContent).toBe('Show them');
   });
 
@@ -254,7 +268,7 @@ describe('a tick in the popup', () => {
     expect(banner()).toBe(null);
   });
 
-  it('untick "Network activity" and only the ad and the two suggestions go', async () => {
+  it('untick "Network activity" and the ad, the suggestions and the group stay hidden', async () => {
     const nodes = buildFeed();
     await startQuiet();
 
@@ -268,8 +282,10 @@ describe('a tick in the popup', () => {
     });
 
     expect(hidden().map((n) => n.getAttribute(MARK_ATTR)).sort()).toEqual([
+      'group',
       'not-followed',
       'promoted',
+      'recommendation',
       'suggested',
     ]);
     expect(isHidden(nodes.comment)).toBe(false);
@@ -282,6 +298,7 @@ describe('a tick in the popup', () => {
         activity: false,
         promoted: false,
         suggested: false,
+        groups: false,
       },
     });
     buildFeed();
@@ -300,7 +317,7 @@ describe('LinkedIn’s virtual scrolling', () => {
   it('picks up items appended after the first pass', async () => {
     buildFeed();
     await startQuiet();
-    expect(hidden()).toHaveLength(6);
+    expect(hidden()).toHaveLength(8);
 
     main.append(
       item(feedPost('Dana Choi likes this'), { componentkey: 'urn:extra-1' }),
@@ -309,10 +326,44 @@ describe('LinkedIn’s virtual scrolling', () => {
     );
     await settle();
 
-    expect(hidden()).toHaveLength(8);
+    expect(hidden()).toHaveLength(10);
     expect(banner().firstChild.textContent).toBe(
-      'Quiet feed: hid 8 posts (4 network activity, 2 promoted, 1 suggested, 1 from people you don’t follow).',
+      'Quiet feed: hid 10 posts (4 network activity, 2 promoted, 1 suggested, 1 recommendation, 1 from people you don’t follow, 1 from groups).',
     );
+  });
+
+  it('hides a post the moment it is inserted, not a debounce later', async () => {
+    buildFeed([]);
+    await startQuiet();
+    expect(banner()).toBe(null);
+
+    const node = item(feedPost('Dana Choi likes this'), { componentkey: 'urn:sync' });
+    main.appendChild(node);
+    await wait(0); // far short of the 150 ms debounce
+
+    expect(node.getAttribute(MARK_ATTR)).toBe(QUIET_CATEGORY.REACTION);
+    expect(isHidden(node)).toBe(true);
+    // The banner is the part that waits, so it has not caught up yet.
+    expect(banner()).toBe(null);
+
+    await settle();
+    expect(banner().firstChild.textContent).toBe(
+      'Quiet feed: hid 1 post (1 network activity).',
+    );
+  });
+
+  it('classifies a post inserted inside a wrapper, not only a bare one', async () => {
+    buildFeed([]);
+    await startQuiet();
+
+    const wrapper = document.createElement('div');
+    wrapper.appendChild(item(groupPost(), { componentkey: 'urn:wrapped' }));
+    main.appendChild(wrapper);
+    await wait(0);
+
+    const node = main.querySelector('[componentkey="urn:wrapped"]');
+    expect(node.getAttribute(MARK_ATTR)).toBe(QUIET_CATEGORY.GROUP);
+    expect(isHidden(node)).toBe(true);
   });
 
   it('does not count a post twice when its container comes back', async () => {
@@ -326,7 +377,7 @@ describe('LinkedIn’s virtual scrolling', () => {
     await settle();
 
     expect(quiet.counts().reaction).toBe(1);
-    expect(hidden()).toHaveLength(6);
+    expect(hidden()).toHaveLength(8);
   });
 
   it('re-hides a recycled container, mark and all', async () => {
@@ -355,7 +406,7 @@ describe('leaving the feed', () => {
     let onFeed = true;
     buildFeed();
     await startQuiet({ onFeed: () => onFeed });
-    expect(hidden()).toHaveLength(6);
+    expect(hidden()).toHaveLength(8);
 
     onFeed = false;
     main.appendChild(item('Sort by: Top'));
@@ -368,14 +419,14 @@ describe('leaving the feed', () => {
     main.appendChild(item(feedPost('Dana Choi likes this'), { componentkey: 'urn:back' }));
     await settle();
 
-    expect(hidden()).toHaveLength(7);
+    expect(hidden()).toHaveLength(9);
     expect(banner()).not.toBe(null);
   });
 
   it('stop() disconnects the observer and leaves nothing behind', async () => {
     buildFeed();
     await startQuiet();
-    expect(hidden()).toHaveLength(6);
+    expect(hidden()).toHaveLength(8);
 
     quiet.stop();
     expect(hidden()).toHaveLength(0);
@@ -414,13 +465,13 @@ describe('the count it keeps', () => {
 
     const stored = await chrome.storage.local.get(QUIET_FEED_KEYS.HIDDEN);
     const today = stored[QUIET_FEED_KEYS.HIDDEN][dayKey()];
-    expect(today.total).toBe(6);
+    expect(today.total).toBe(8);
     expect(today.reaction).toBe(1);
     expect(today.promoted).toBe(1);
     expect(today.suggested).toBe(1);
 
     const sent = chrome.runtime.sendMessage.mock.calls.map(([m]) => m);
-    expect(sent.some((m) => m.type === 'quietFeedHidden' && m.total === 6)).toBe(true);
+    expect(sent.some((m) => m.type === 'quietFeedHidden' && m.total === 8)).toBe(true);
   });
 
   it('adds to a day that already has a tally rather than replacing it', async () => {
@@ -435,7 +486,7 @@ describe('the count it keeps', () => {
     const today = stored[QUIET_FEED_KEYS.HIDDEN][dayKey()];
     expect(today.reaction).toBe(5);
     expect(today['not-followed']).toBe(1);
-    expect(today.total).toBe(10);
+    expect(today.total).toBe(12);
   });
 
   it('keeps a week of days and no more', () => {
@@ -470,6 +521,11 @@ describe('the banner’s sentence', () => {
     expect(bannerText({ promoted: 4 })).toBe('Quiet feed: hid 4 posts (4 promoted).');
     expect(bannerText({ reaction: 1 })).toBe(
       'Quiet feed: hid 1 post (1 network activity).',
+    );
+    expect(bannerText({ group: 6 })).toBe('Quiet feed: hid 6 posts (6 from groups).');
+    expect(bannerText({ recommendation: 1 })).toBe('Quiet feed: hid 1 post (1 recommendation).');
+    expect(bannerText({ recommendation: 4, group: 2 })).toBe(
+      'Quiet feed: hid 6 posts (4 recommendations, 2 from groups).',
     );
   });
 });

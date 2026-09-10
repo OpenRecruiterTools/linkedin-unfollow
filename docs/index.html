@@ -334,7 +334,7 @@
         >Download for Chrome</a
       >
       <p class="under-button">
-        Chrome, Edge, Brave or any Chromium browser · ~56 KB ·
+        Chrome, Edge, Brave or any Chromium browser · ~58 KB ·
         <a href="https://github.com/OpenRecruiterTools/linkedin-unfollow">source on GitHub</a>
       </p>
     </header>
@@ -491,18 +491,31 @@
             <td>somebody you don't follow — an unlabelled suggestion</td>
           </tr>
           <tr>
+            <th>a group's name above an inline author line ("Tariq Mahmood • 3rd+")</th>
+            <td>a post in a group you joined</td>
+          </tr>
+          <tr>
+            <th>"Jobs recommended for you", "People you may know", "Add to your feed"</th>
+            <td>a recommendation module, not a post at all</td>
+          </tr>
+          <tr>
             <th>none of the above</th>
             <td>somebody you follow — this is what stays</td>
           </tr>
         </table>
         <p>
-          That last row took a second pass against the live feed to find. LinkedIn only draws a
-          <strong>Follow</strong> button on a post when you do <em>not</em> already follow its
-          author, which makes it the same statement "Suggested" makes without the word — and on a
-          feed you have just emptied it is the largest category there is. Ads on company pages,
-          meanwhile, put "Promoted" <em>under</em> the page name rather than above it, and company
-          posts carry no connection-degree marker at all: their author block is a bare follower
-          count.
+          Everything past the first few rows took two more passes against the live feed to find, and
+          none of it is a header. LinkedIn only draws a <strong>Follow</strong> button on a post when
+          you do <em>not</em> already follow its author, which makes it the same statement
+          "Suggested" makes without the word — and on a feed you have just emptied it is the largest
+          category there is. Ads on company pages put "Promoted" <em>under</em> the page name rather
+          than above it, and company posts carry no connection-degree marker at all: their author
+          block is a bare follower count. A group post puts the group's name where a header would go
+          and runs the author's name and degree together on one line, where a plain person's post
+          puts the name on its own line above a bare "• 3rd+". And the recommendation modules have no
+          author at all, so they announce themselves in a fixed phrase on their first line, matched
+          whole: "Recommended for you" is a module, "Recommended for you: three books" is somebody's
+          post.
         </p>
         <p>
           LinkedIn's markup has no stable class names, so all of this is read off the rendered text
@@ -515,12 +528,13 @@
           one. It hides only what it positively recognised.
         </p>
         <p class="note">
-          A master switch and three tick boxes sit in the popup, above the unfollow card, all four on
-          to begin with: network activity, promoted, and suggested-or-not-followed. One grey line at
-          the top of the feed says what it did — "Quiet feed: hid 12 posts (4 network activity, 3
-          promoted, 5 from people you don't follow). Show them" — and <strong>Show them</strong>
-          puts every one of them back for that page load. Nothing is deleted and nothing is sent: it
-          adds one CSS class to posts already in your browser.
+          A master switch and four tick boxes sit in the popup, above the unfollow card, all five on
+          to begin with: network activity, promoted, suggested-or-not-followed, and posts in groups
+          you have joined. One grey line at the top of the feed says what it did — "Quiet feed: hid
+          30 posts (4 network activity, 3 promoted, 5 recommendations, 12 from people you don't
+          follow, 6 from groups). Show them" — and <strong>Show them</strong> puts every one of them
+          back for that page load. Nothing is deleted and nothing is sent: it adds one CSS class to
+          posts already in your browser, the moment LinkedIn inserts them.
         </p>
       </div>
 
