@@ -9,14 +9,30 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { MESSAGES, PHASE, SCOPE, SPEED, STOPPED, UNFOLLOW_LIMIT_DEFAULT } from '../src/constants.js';
+import {
+  MESSAGES,
+  PHASE,
+  QUIET_FEED_KEYS,
+  SCOPE,
+  SPEED,
+  STOPPED,
+  UNFOLLOW_LIMIT_DEFAULT,
+  dayKey,
+} from '../src/constants.js';
 import {
   AUTHOR_URL,
   CONNECTIONS_HINT,
   CONNECTIONS_LABEL,
   FAST_LABEL,
   FORMATIX_URL,
+  QUIET_ACTIVITY_LABEL,
+  QUIET_MASTER_LABEL,
+  QUIET_PROMOTED_LABEL,
+  QUIET_SUGGESTED_LABEL,
+  QUIET_TITLE,
+  QUIET_TOGETHER_LINE,
   TOOLKIT_URL,
+  hiddenTodayLine,
   mount,
 } from '../src/popup/popup.js';
 
@@ -467,5 +483,131 @@ describe('progress', () => {
 
     expect($('progress').hidden).toBe(false);
     expect($('progress').textContent).toBe('Unfollowed 20 so far — about 715 to go…');
+  });
+});
+
+/* ================================================================== */
+/*  Quiet feed                                                        */
+/* ================================================================== */
+
+describe('the quiet feed card', () => {
+  /** The three category boxes, in the order they are drawn. */
+  const CATEGORY_BOXES = ['quiet-activity', 'quiet-promoted', 'quiet-suggested'];
+
+  it('sits above the unfollow card, with everything on', async () => {
+    serveWorker({});
+    mount(container);
+    await settle();
+
+    const cards = [...container.querySelectorAll('.card .card-title')].map((h) => h.textContent);
+    expect(cards[0]).toBe(QUIET_TITLE);
+    expect(cards).toContain('Unfollow your feed');
+
+    expect($('quiet-enabled').checked).toBe(true);
+    for (const testid of CATEGORY_BOXES) expect($(testid).checked).toBe(true);
+  });
+
+  it('names the three things it hides, and what it is for', async () => {
+    serveWorker({});
+    mount(container);
+    await settle();
+
+    for (const label of [
+      QUIET_MASTER_LABEL,
+      QUIET_ACTIVITY_LABEL,
+      QUIET_PROMOTED_LABEL,
+      QUIET_SUGGESTED_LABEL,
+      QUIET_TOGETHER_LINE,
+    ]) {
+      expect(container.textContent).toContain(label);
+    }
+  });
+
+  it('writes a tick straight to storage, where the feed is listening', async () => {
+    serveWorker({});
+    mount(container);
+    await settle();
+
+    $('quiet-promoted').checked = false;
+    $('quiet-promoted').dispatchEvent(new Event('change'));
+    await settle();
+
+    const stored = await chrome.storage.local.get(QUIET_FEED_KEYS.SETTINGS);
+    expect(stored[QUIET_FEED_KEYS.SETTINGS]).toEqual({
+      enabled: true,
+      activity: true,
+      promoted: false,
+      suggested: true,
+    });
+  });
+
+  it('turning the master off leaves the three below it inert', async () => {
+    serveWorker({});
+    mount(container);
+    await settle();
+    for (const testid of CATEGORY_BOXES) expect($(testid).disabled).toBe(false);
+
+    $('quiet-enabled').checked = false;
+    $('quiet-enabled').dispatchEvent(new Event('change'));
+    await settle();
+
+    for (const testid of CATEGORY_BOXES) expect($(testid).disabled).toBe(true);
+    const stored = await chrome.storage.local.get(QUIET_FEED_KEYS.SETTINGS);
+    expect(stored[QUIET_FEED_KEYS.SETTINGS].enabled).toBe(false);
+    // Off is off, not forgotten: the categories keep what they were set to.
+    expect(stored[QUIET_FEED_KEYS.SETTINGS].promoted).toBe(true);
+  });
+
+  it('opens showing what was already saved', async () => {
+    serveWorker({});
+    await chrome.storage.local.set({
+      [QUIET_FEED_KEYS.SETTINGS]: {
+        enabled: true,
+        activity: false,
+        promoted: true,
+        suggested: false,
+      },
+    });
+
+    mount(container);
+    await settle();
+
+    expect($('quiet-activity').checked).toBe(false);
+    expect($('quiet-promoted').checked).toBe(true);
+    expect($('quiet-suggested').checked).toBe(false);
+  });
+
+  it('shows today’s tally, and only today’s', async () => {
+    serveWorker({});
+    await chrome.storage.local.set({
+      [QUIET_FEED_KEYS.HIDDEN]: {
+        [dayKey()]: { total: 23, reaction: 18, promoted: 3, suggested: 2 },
+        '2020-01-01': { total: 9999 },
+      },
+    });
+
+    mount(container);
+    await settle();
+
+    expect($('quiet-count').textContent).toBe('Hidden today: 23 posts.');
+  });
+
+  it('starts at nothing, and counts in whole posts', () => {
+    expect(hiddenTodayLine(0)).toBe('Nothing hidden yet today.');
+    expect(hiddenTodayLine(1)).toBe('Hidden today: 1 post.');
+    expect(hiddenTodayLine(1234)).toBe('Hidden today: 1,234 posts.');
+  });
+
+  it('keeps up with the feed while the popup is open', async () => {
+    serveWorker({});
+    mount(container);
+    await settle();
+    expect($('quiet-count').textContent).toBe('Nothing hidden yet today.');
+
+    for (const listener of chrome.__mock.listeners.onMessage) {
+      listener({ type: MESSAGES.QUIET_FEED_HIDDEN, day: dayKey(), total: 7 }, {}, () => {});
+    }
+
+    expect($('quiet-count').textContent).toBe('Hidden today: 7 posts.');
   });
 });

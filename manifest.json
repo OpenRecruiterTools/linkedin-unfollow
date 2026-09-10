@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "LinkedIn Unfollow",
-  "version": "1.1.0",
-  "description": "Unfollow everyone in your LinkedIn feed in one click, at human pace, in your own browser. Free, open source, no account.",
+  "version": "1.2.0",
+  "description": "Unfollow everyone in your LinkedIn feed in one click, then keep it quiet: hide the likes, comments, reposts, suggestions and ads that refill it.",
   "permissions": [
     "activeTab",
     "cookies",
@@ -11,6 +11,20 @@
   ],
   "host_permissions": [
     "https://www.linkedin.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/feed", "https://www.linkedin.com/feed/*"],
+      "js": ["src/content/boot.js"],
+      "css": ["src/content/quiet-feed.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/constants.js", "src/content/classify.js", "src/content/quiet-feed.js"],
+      "matches": ["https://www.linkedin.com/*"]
+    }
   ],
   "background": {
     "service_worker": "src/background.js",

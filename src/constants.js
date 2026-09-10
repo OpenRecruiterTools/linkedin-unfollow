@@ -15,6 +15,8 @@ export const MESSAGES = Object.freeze({
   STOP: 'stop',
   /** Worker → popup, every ten. Not a request. */
   PROGRESS: 'progress',
+  /** Quiet feed content script → popup, when the count changes. Not a request. */
+  QUIET_FEED_HIDDEN: 'quietFeedHidden',
 });
 
 /**
@@ -109,3 +111,99 @@ export const STOPPED = Object.freeze({
   STOPPED: 'stopped',
   ERROR: 'error',
 });
+
+/* ================================================================== */
+/*  Quiet feed                                                        */
+/* ================================================================== */
+
+/**
+ * What a post in the home feed turned out to be.
+ *
+ * Unfollowing empties the list of people whose posts you subscribed to. It does
+ * not empty the feed: LinkedIn refills it with what your network *did* — liked,
+ * commented on, reposted — plus suggestions and ads. Those arrive with a header
+ * line above the author that says why you are being shown them, and that header
+ * is the only stable thing about them: the markup has no class names worth
+ * matching on. See `src/content/classify.js`.
+ *
+ * `direct` is a post from somebody you actually follow — no header at all — and
+ * `unknown` is anything we could not read confidently, including the composer
+ * and the "Start a post" card. Neither is ever hidden.
+ */
+export const QUIET_CATEGORY = Object.freeze({
+  PROMOTED: 'promoted',
+  SUGGESTED: 'suggested',
+  REACTION: 'reaction',
+  COMMENT: 'comment',
+  REPOST: 'repost',
+  FOLLOWED_BY: 'followed-by',
+  OTHER_ACTIVITY: 'other-activity',
+  DIRECT: 'direct',
+  UNKNOWN: 'unknown',
+});
+
+/** The categories that are somebody else's activity, under one tick box. */
+export const ACTIVITY_CATEGORIES = Object.freeze([
+  QUIET_CATEGORY.REACTION,
+  QUIET_CATEGORY.COMMENT,
+  QUIET_CATEGORY.REPOST,
+  QUIET_CATEGORY.FOLLOWED_BY,
+  QUIET_CATEGORY.OTHER_ACTIVITY,
+]);
+
+/** Every category that a tick box can hide. `direct` and `unknown` are not here. */
+export const HIDEABLE_CATEGORIES = Object.freeze([
+  ...ACTIVITY_CATEGORIES,
+  QUIET_CATEGORY.PROMOTED,
+  QUIET_CATEGORY.SUGGESTED,
+]);
+
+/** Which tick box governs which category. */
+export const QUIET_GROUP = Object.freeze({
+  ACTIVITY: 'activity',
+  PROMOTED: 'promoted',
+  SUGGESTED: 'suggested',
+});
+
+/**
+ * Category → the tick box that hides it, or `null` for "never hidden".
+ * @param {string} category
+ * @returns {string|null}
+ */
+export function quietGroupOf(category) {
+  if (category === QUIET_CATEGORY.PROMOTED) return QUIET_GROUP.PROMOTED;
+  if (category === QUIET_CATEGORY.SUGGESTED) return QUIET_GROUP.SUGGESTED;
+  if (ACTIVITY_CATEGORIES.includes(category)) return QUIET_GROUP.ACTIVITY;
+  return null;
+}
+
+/** Where quiet feed keeps its two pieces of state. */
+export const QUIET_FEED_KEYS = Object.freeze({
+  SETTINGS: 'quietFeed.settings',
+  HIDDEN: 'quietFeed.hidden',
+});
+
+/** On, hiding all three groups. The whole point is that it works unattended. */
+export const QUIET_FEED_DEFAULTS = Object.freeze({
+  enabled: true,
+  activity: true,
+  promoted: true,
+  suggested: true,
+});
+
+/** Days of counts kept in `quietFeed.hidden`. A week is plenty; it is a curio. */
+export const QUIET_FEED_DAYS_KEPT = 7;
+
+/**
+ * Local `YYYY-MM-DD`, the key today's count is filed under.
+ *
+ * Local rather than UTC because "hid 23 posts today" is a sentence about the
+ * reader's day, not about Greenwich.
+ *
+ * @param {Date} [date]
+ * @returns {string}
+ */
+export function dayKey(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}

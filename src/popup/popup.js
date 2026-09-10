@@ -18,6 +18,8 @@
 import {
   MESSAGES,
   PHASE,
+  QUIET_FEED_DEFAULTS,
+  QUIET_FEED_KEYS,
   SCOPE,
   SPEED,
   STOPPED,
@@ -25,6 +27,7 @@ import {
   UNFOLLOW_LIMIT_MAX,
   UNFOLLOW_LIMIT_MIN,
   UNFOLLOW_SAMPLE_MAX,
+  dayKey,
 } from '../constants.js';
 import { el, render, fmtNumber } from '../ui/dom.js';
 import {
@@ -55,6 +58,20 @@ export const CONNECTIONS_HINT =
 
 export const FAST_LABEL = 'Fast (3 at a time — more likely to trip LinkedIn’s rate limit)';
 export const FAST_HINT = 'Careful, one at a time, is the default and the one to use.';
+
+/* ---- Quiet feed ---------------------------------------------------- */
+
+export const QUIET_TITLE = 'Quiet feed';
+export const QUIET_HINT =
+  'Unfollowing empties the list you subscribed to; LinkedIn refills the feed with ' +
+  'what your network liked, commented on and reposted. This hides those in the page.';
+export const QUIET_MASTER_LABEL = 'Hide the posts you did not follow anyone to see';
+export const QUIET_ACTIVITY_LABEL =
+  'Network activity — likes, comments, reposts, “followed by”';
+export const QUIET_PROMOTED_LABEL = 'Promoted (ads)';
+export const QUIET_SUGGESTED_LABEL = 'Suggested posts';
+export const QUIET_TOGETHER_LINE =
+  'Together with Unfollow everyone, your feed shows only the people you choose to refollow.';
 
 export const UNFOLLOW_WARNING =
   'Sends the same unfollow request the LinkedIn page sends, one person at a time, ' +
@@ -118,9 +135,109 @@ export function nameList(names, heading) {
 }
 
 /**
+ * "Hidden today: 23 posts." — the only number quiet feed keeps.
+ *
+ * @param {number} n
+ * @returns {string}
+ */
+export function hiddenTodayLine(n) {
+  const count = Number(n) || 0;
+  if (!count) return 'Nothing hidden yet today.';
+  return `Hidden today: ${fmtNumber(count)} post${count === 1 ? '' : 's'}.`;
+}
+
+/**
+ * The quiet feed card.
+ *
+ * Four tick boxes and a number. There is no button, because there is nothing to
+ * run: the settings live in `chrome.storage.local`, the content script on the
+ * feed is listening to that same storage, and a tick takes effect in an open
+ * tab before you have let go of the mouse.
+ *
+ * @returns {{node: Node, load: () => Promise<void>, onHidden: (message: object) => void}}
+ */
+export function quietFeedCard() {
+  const master = checkbox({ 'data-testid': 'quiet-enabled', checked: QUIET_FEED_DEFAULTS.enabled });
+  const boxes = {
+    activity: checkbox({
+      'data-testid': 'quiet-activity',
+      checked: QUIET_FEED_DEFAULTS.activity,
+    }),
+    promoted: checkbox({
+      'data-testid': 'quiet-promoted',
+      checked: QUIET_FEED_DEFAULTS.promoted,
+    }),
+    suggested: checkbox({
+      'data-testid': 'quiet-suggested',
+      checked: QUIET_FEED_DEFAULTS.suggested,
+    }),
+  };
+
+  const count = el('p', { class: 'status', 'data-testid': 'quiet-count' }, hiddenTodayLine(0));
+
+  /** With the master off, the three below it are inert; say so visually. */
+  const paintEnabled = () => {
+    for (const box of Object.values(boxes)) box.disabled = !master.checked;
+  };
+
+  const read = () => ({
+    enabled: master.checked,
+    activity: boxes.activity.checked,
+    promoted: boxes.promoted.checked,
+    suggested: boxes.suggested.checked,
+  });
+
+  const save = async () => {
+    paintEnabled();
+    await chrome.storage.local.set({ [QUIET_FEED_KEYS.SETTINGS]: read() });
+  };
+
+  for (const box of [master, ...Object.values(boxes)]) {
+    box.addEventListener('change', () => {
+      save().catch(() => {});
+    });
+  }
+
+  /** Fill the boxes in from storage, and the number in from today's tally. */
+  const load = async () => {
+    const stored = await chrome.storage.local.get([
+      QUIET_FEED_KEYS.SETTINGS,
+      QUIET_FEED_KEYS.HIDDEN,
+    ]);
+    const settings = { ...QUIET_FEED_DEFAULTS, ...(stored[QUIET_FEED_KEYS.SETTINGS] || {}) };
+    master.checked = settings.enabled !== false;
+    for (const [key, box] of Object.entries(boxes)) box.checked = settings[key] !== false;
+    paintEnabled();
+    const today = (stored[QUIET_FEED_KEYS.HIDDEN] || {})[dayKey()] || {};
+    count.textContent = hiddenTodayLine(today.total);
+  };
+
+  const node = card(
+    QUIET_TITLE,
+    { hint: QUIET_HINT, class: 'card--quiet' },
+    checkField(QUIET_MASTER_LABEL, master),
+    checkField(QUIET_ACTIVITY_LABEL, boxes.activity),
+    checkField(QUIET_PROMOTED_LABEL, boxes.promoted),
+    checkField(QUIET_SUGGESTED_LABEL, boxes.suggested),
+    count,
+    el('p', { class: 'hint' }, QUIET_TOGETHER_LINE),
+  );
+
+  return {
+    node,
+    load,
+    /** The content script's heartbeat, when the popup happens to be open. */
+    onHidden: (message) => {
+      count.textContent = hiddenTodayLine(message && message.total);
+    },
+  };
+}
+
+/**
  * Build the screen.
  *
- * @returns {{nodes: Node[], onProgress: (message: object) => void}}
+ * @returns {{nodes: Node[], onProgress: (message: object) => void,
+ *   quiet: {load: () => Promise<void>, onHidden: (message: object) => void}}}
  */
 export function unfollowScreen() {
   const err = errorLine();
@@ -374,7 +491,13 @@ export function unfollowScreen() {
     setProgress(`Unfollowed ${fmtNumber(done)} so far${left}…`);
   };
 
-  return { nodes: [head, el('main', { class: 'view' }, body), foot], onProgress };
+  const quiet = quietFeedCard();
+
+  return {
+    nodes: [head, el('main', { class: 'view' }, quiet.node, body), foot],
+    onProgress,
+    quiet,
+  };
 }
 
 /**
@@ -385,8 +508,13 @@ export function mount(container) {
   const screen = unfollowScreen();
   render(container, screen.nodes);
   chrome.runtime.onMessage.addListener((message) => {
-    if (message && message.type === MESSAGES.PROGRESS) screen.onProgress(message);
+    if (!message) return;
+    if (message.type === MESSAGES.PROGRESS) screen.onProgress(message);
+    if (message.type === MESSAGES.QUIET_FEED_HIDDEN) screen.quiet.onHidden(message);
   });
+  // The boxes are drawn at their defaults and corrected from storage a tick
+  // later, so the card is never blank and never wrong for long.
+  screen.quiet.load().catch(() => {});
   return container;
 }
 

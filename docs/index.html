@@ -229,6 +229,37 @@
         color: var(--muted);
       }
 
+      /* ---------- The header table in "Quiet feed" ---------- */
+
+      .headers {
+        width: 100%;
+        margin: 0.9rem 0;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+      }
+
+      .headers th,
+      .headers td {
+        padding: 0.4rem 0.6rem 0.4rem 0;
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .headers th {
+        font-weight: 650;
+      }
+
+      .headers td:last-child {
+        color: var(--muted);
+      }
+
+      .headers tr:last-child td {
+        color: inherit;
+        font-weight: 600;
+        border-bottom: 0;
+      }
+
       .warn {
         padding: 1.1rem 1.25rem;
         color: var(--warn-text);
@@ -294,8 +325,8 @@
       </svg>
       <h1>Tired of the AI slop in your LinkedIn feed?</h1>
       <p class="subline">
-        Unfollow everyone in one click, at human pace, in your own browser. Free, open source, no
-        account.
+        Unfollow everyone in one click, at human pace, in your own browser — then hide the likes,
+        comments, reposts, suggestions and ads that refill it. Free, open source, no account.
       </p>
       <a
         class="download"
@@ -303,7 +334,7 @@
         >Download for Chrome</a
       >
       <p class="under-button">
-        Chrome, Edge, Brave or any Chromium browser · ~34 KB ·
+        Chrome, Edge, Brave or any Chromium browser · ~54 KB ·
         <a href="https://github.com/OpenRecruiterTools/linkedin-unfollow">source on GitHub</a>
       </p>
     </header>
@@ -311,7 +342,8 @@
     <main>
       <p style="margin-top: 2.5rem">
         You stay connected to everyone. Unfollowing is not disconnecting — your connections stay
-        connections, you just stop seeing their posts, and your feed goes quiet.
+        connections, you just stop seeing their posts. And because emptying the Following list does
+        not empty the feed, <a href="#quiet">Quiet feed</a> hides what LinkedIn refills it with.
       </p>
 
       <h2>Install it</h2>
@@ -412,6 +444,63 @@
           because it is far more reading: 9,479 followers is 190 requests before a single unfollow is
           sent, so "Check count" with the box ticked takes a couple of minutes and shows "Scanning
           followers… N of M" while it works.
+        </p>
+      </div>
+
+      <h2 id="quiet">Quiet feed: what unfollowing cannot fix</h2>
+      <div class="card">
+        <p>
+          <strong>Unfollow everybody and the feed does not go quiet — it refills.</strong>
+          Unfollowing removes what you subscribed to, and nothing else. LinkedIn then fills the space
+          with what the people you are still <em>connected</em> to have been doing — the posts they
+          liked, commented on and reposted — plus its own suggestions and its ads. Quiet feed hides
+          all of that in the page, so what is left is the people you chose to follow.
+        </p>
+        <p>
+          Verified on a real account the day after unfollowing everyone: with the Following list at
+          zero, every post on the home feed carried a header line above the author saying why it was
+          there.
+        </p>
+        <table class="headers">
+          <tr>
+            <th>"Priya likes this", "celebrates", "finds this insightful"</th>
+            <td>somebody's reaction</td>
+          </tr>
+          <tr>
+            <th>"Priya commented", "Priya and 3 others commented"</th>
+            <td>somebody's comment</td>
+          </tr>
+          <tr>
+            <th>"Priya reposted this"</th>
+            <td>somebody's repost</td>
+          </tr>
+          <tr>
+            <th>"Followed by Priya"</th>
+            <td>somebody a connection follows</td>
+          </tr>
+          <tr>
+            <th>"Suggested" · "Promoted"</th>
+            <td>LinkedIn's own recommendation, and an ad</td>
+          </tr>
+          <tr>
+            <th>no header at all</th>
+            <td>somebody you follow — this is what stays</td>
+          </tr>
+        </table>
+        <p>
+          That header is all it goes on. LinkedIn's markup has no stable class names, so the
+          classifier reads the rendered text of each post and matches the line above the author
+          against the list above. Everything unclear is left alone: an item with no author block is
+          not a post as far as this is concerned — that is the composer, the draft box, the "Start a
+          post" card — and a header form it has not been taught falls through to <em>shown</em>. It
+          hides only what it positively recognised.
+        </p>
+        <p class="note">
+          A master switch and three tick boxes sit in the popup, above the unfollow card, all four on
+          to begin with. One grey line at the top of the feed says what it did — "Quiet feed: hid 23
+          posts (18 from your network's activity, 3 promoted, 2 suggested). Show them" — and
+          <strong>Show them</strong> puts every one of them back for that page load. Nothing is
+          deleted and nothing is sent: it adds one CSS class to posts already in your browser.
         </p>
       </div>
 

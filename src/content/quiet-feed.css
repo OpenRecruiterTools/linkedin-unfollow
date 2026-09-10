@@ -1,0 +1,60 @@
+/* ==================================================================
+   Quiet feed — the two rules that run inside linkedin.com.
+
+   Injected by the manifest rather than by script, so it is a browser
+   stylesheet rather than an inline <style> the site's content
+   security policy would have to be asked about. Both selectors are
+   namespaced; nothing here can touch a rule of LinkedIn's own.
+   ================================================================== */
+
+/* The whole of the hiding. Nothing is removed from the page — take the
+   class off (or press "Show them") and every post is back. */
+div[role='listitem'].quiet-feed-hidden {
+  display: none !important;
+}
+
+/* One line at the top of the feed, in LinkedIn's own idiom: a white card,
+   grey text, small. It should read as a note, not as an interruption. */
+#quiet-feed-banner.quiet-feed-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 13px;
+  line-height: 1.4;
+  font-family: inherit;
+}
+
+#quiet-feed-banner .quiet-feed-banner__toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #0a66c2;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+#quiet-feed-banner .quiet-feed-banner__toggle:hover,
+#quiet-feed-banner .quiet-feed-banner__toggle:focus-visible {
+  color: #004182;
+}
+
+@media (prefers-color-scheme: dark) {
+  #quiet-feed-banner.quiet-feed-banner {
+    border-color: rgba(255, 255, 255, 0.13);
+    background: #1b1f23;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  #quiet-feed-banner .quiet-feed-banner__toggle {
+    color: #71b7fb;
+  }
+}

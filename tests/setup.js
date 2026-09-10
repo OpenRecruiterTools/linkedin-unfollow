@@ -8,7 +8,7 @@
  */
 import { beforeEach, vi } from 'vitest';
 
-const MANIFEST = { version: '1.1.0', name: 'LinkedIn Unfollow', manifest_version: 3 };
+const MANIFEST = { version: '1.2.0', name: 'LinkedIn Unfollow', manifest_version: 3 };
 
 /** Mutable backing state; also reachable from tests via `chrome.__mock`. */
 const mock = {
@@ -20,6 +20,7 @@ const mock = {
   requests: [],
   listeners: {
     onMessage: [],
+    onStorageChanged: [],
   },
   /** Queue of results returned by successive `chrome.scripting.executeScript` calls. */
   executeScriptResults: [],
@@ -55,7 +56,16 @@ function storageGet(keys, callback) {
 }
 
 function storageSet(items, callback) {
-  for (const [k, v] of Object.entries(items || {})) mock.storage.set(k, structuredClone(v));
+  const changes = {};
+  for (const [k, v] of Object.entries(items || {})) {
+    const oldValue = mock.storage.get(k);
+    const newValue = structuredClone(v);
+    mock.storage.set(k, newValue);
+    changes[k] = { oldValue: structuredClone(oldValue), newValue: structuredClone(newValue) };
+  }
+  // The real API announces every write, and the quiet-feed content script is
+  // built on hearing the popup's. So the mock announces them too.
+  for (const listener of [...mock.listeners.onStorageChanged]) listener(changes, 'local');
   return settle(undefined, callback);
 }
 
@@ -82,6 +92,12 @@ function buildChrome() {
         clear: vi.fn((callback) => {
           mock.storage.clear();
           return settle(undefined, callback);
+        }),
+      },
+      onChanged: {
+        addListener: vi.fn((fn) => mock.listeners.onStorageChanged.push(fn)),
+        removeListener: vi.fn((fn) => {
+          mock.listeners.onStorageChanged = mock.listeners.onStorageChanged.filter((f) => f !== fn);
         }),
       },
     },
@@ -150,6 +166,7 @@ const runtime = {
  */
 export function resetChrome() {
   mock.storage.clear();
+  mock.listeners.onStorageChanged.length = 0;
   mock.tabs.clear();
   mock.cookies.clear();
   mock.messages.length = 0;

@@ -656,10 +656,20 @@ export async function handleMessage(message) {
   }
 }
 
+/**
+ * Messages that pass through the worker rather than to it.
+ *
+ * Everything on this extension's message bus arrives here, including the two
+ * one-way announcements meant for the popup. Answering those with "unknown
+ * message" would be noise; ignoring them is the whole job.
+ */
+const BROADCASTS = new Set([MESSAGES.PROGRESS, MESSAGES.QUIET_FEED_HIDDEN]);
+
 /** Returning `true` keeps the message channel open for the async reply. */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Progress is the worker talking to the popup; it is not a request for us.
-  if (!message || message.type === MESSAGES.PROGRESS) return false;
+  // Progress is the worker talking to the popup, and the quiet-feed count is
+  // the content script talking to the popup. Neither is a request for us.
+  if (!message || BROADCASTS.has(message.type)) return false;
   handleMessage(message)
     .then((data) => sendResponse({ ok: true, data }))
     .catch((error) => sendResponse({ ok: false, error: (error && error.message) || String(error) }));

@@ -6,10 +6,14 @@ Unfollow everyone in your LinkedIn feed, at human pace, in your own browser.
 Free, open source, no account, no server, no telemetry.
 
 You stay connected to everyone — unfollowing is not disconnecting. You just stop
-seeing their posts, and your feed goes quiet.
+seeing their posts.
+
+And because unfollowing everybody does not empty the feed — LinkedIn refills it
+with what your network liked, commented on and reposted — **Quiet feed** hides
+those in the page too. [See below](#quiet-feed-what-unfollowing-cannot-fix).
 
 [**Download for Chrome →**](https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest/download/linkedin-unfollow.zip)
-(a 34 KB zip from the [latest release](https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest)) ·
+(a 54 KB zip from the [latest release](https://github.com/OpenRecruiterTools/linkedin-unfollow/releases/latest)) ·
 [Install guide with pictures](https://openrecruitertools.github.io/linkedin-unfollow/)
 
 ---
@@ -99,6 +103,53 @@ while it works.
 
 ---
 
+## Quiet feed: what unfollowing cannot fix
+
+**Unfollow everybody and the feed does not go quiet — it refills.**
+
+Unfollowing removes what you subscribed to, and nothing else. LinkedIn then
+fills the space with what the people you are still *connected* to have been
+doing — the posts they liked, commented on and reposted, the people they follow
+— plus its own suggestions and its ads. Quiet feed hides all of that in the
+page, so what is left is the people you chose to follow.
+
+Verified on a real account the day after unfollowing everyone: with the
+Following list at zero, every post on the home feed carried a header line above
+the author saying why it was there.
+
+| Header on the post | What it is |
+|---|---|
+| "Priya likes this", "celebrates", "loves", "finds this insightful" | somebody's reaction |
+| "Priya commented", "Priya and 3 others commented" | somebody's comment |
+| "Priya reposted this" | somebody's repost |
+| "Followed by Priya" | somebody a connection follows |
+| "Priya was mentioned…", "Northwind is hiring" | other activity |
+| "Suggested" | LinkedIn's recommendation |
+| "Promoted" | an ad |
+| *no header at all* | **somebody you follow — this is what stays** |
+
+That header is all it goes on. LinkedIn's markup has no stable class names —
+they are obfuscated on every build — so the classifier reads the rendered text
+of each post, takes the line above the author block, and matches it against the
+list above. Everything else is left alone, and "left alone" is the default in
+every unclear case: a post with no author block is not a post as far as this is
+concerned (that is the composer, the draft box, the "Start a post" card), and a
+header form it has not been taught falls through to *shown*. It hides only what
+it positively recognised.
+
+Turn it on and off in the popup, in the card above the unfollow one: a master
+switch, and three tick boxes for network activity, promoted and suggested. All
+four are on to begin with. At the top of the feed a single grey line says what
+it did — "Quiet feed: hid 23 posts (18 from your network's activity, 3 promoted,
+2 suggested). Show them" — and **Show them** puts every one of them back for
+that page load.
+
+Nothing is deleted, nothing is sent. It adds one CSS class to posts already in
+your browser; no request is made, LinkedIn is not told, and the count in the
+popup is a number in `chrome.storage.local` on your own machine.
+
+---
+
 ## How it works
 
 It makes the same requests linkedin.com's own pages make, from your own
@@ -165,6 +216,17 @@ followed automatically when you connect and never appear in LinkedIn's Following
 list, so emptying that list leaves every one of them behind. Tick the box and run
 it again — it reads your followers list, where their state actually shows up.
 
+**I unfollowed everyone and my feed is still full.**
+It will be. Unfollowing only empties the list of people whose posts you
+subscribed to; LinkedIn immediately refills the feed with what your connections
+liked, commented on and reposted, plus suggestions and ads. That is what Quiet
+feed is for — it hides them in the page, and it is on by default.
+
+**Does Quiet feed send anything to LinkedIn?**
+No. It reads the text of the posts already on screen and adds a CSS class to the
+ones it recognises. No request is made, nothing is deleted, and pressing "Show
+them" at the top of the feed puts them all back.
+
 **Will I lose my connections?**
 No. Unfollowing is not disconnecting. Your connections stay connections; you
 just stop seeing their posts. You can follow anyone again by hand.
@@ -221,7 +283,7 @@ you are running, which you can read — with you.
 npm install
 npm test      # vitest, with an in-memory chrome mock — nothing touches LinkedIn
 npm run lint  # eslint
-npm run zip   # dist/linkedin-unfollow-v1.1.0.zip
+npm run zip   # dist/linkedin-unfollow-v1.2.0.zip
 ```
 
 There is no build step. `src/` is what ships.
@@ -231,8 +293,11 @@ There is no build step. `src/` is what ships.
 | `src/linkedin.js` | The three API calls, and the parsers for the two list responses. |
 | `src/background.js` | The engine: two sources, one to three streams, pacing, limits, stop conditions, message router. |
 | `src/dom-fallback.js` | The click-the-page engine, kept for when the query id rotates. |
+| `src/content/classify.js` | Quiet feed's classifier: a post's text in, a category out. Pure — no DOM, no `chrome`. |
+| `src/content/quiet-feed.js` | The content script: find the posts, hide the ones the tick boxes name, draw the line at the top. |
+| `src/content/boot.js` | Three lines, because MV3 will not load a module as a content script. |
 | `src/popup/` | The one screen. |
-| `tests/` | 119 tests. Every fixture is invented; no real person appears in them. |
+| `tests/` | 193 tests. Every fixture is invented; no real person appears in them. |
 
 ---
 

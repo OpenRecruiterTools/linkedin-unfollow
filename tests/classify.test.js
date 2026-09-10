@@ -1,0 +1,265 @@
+/**
+ * The classifier.
+ *
+ * Every string here is invented. No real person, post or company appears in
+ * this file — the shapes are taken from what the feed looks like once the
+ * Following list is empty, and the names are made up.
+ *
+ * The tests come in two halves, and the second half is the important one. The
+ * first checks that each header form is recognised. The second checks the
+ * things that would make this feature worse than useless: a person called
+ * "Loves Dale", the word "Promoted" inside somebody's post, "3 comments" under
+ * one, the draft box, the "Start a post" card. Hiding any of those is a bug of
+ * a different order from failing to hide an ad.
+ */
+import { describe, it, expect } from 'vitest';
+
+import { QUIET_CATEGORY } from '../src/constants.js';
+import { classifyPost, extractHeader, authorBlockIndex, lines } from '../src/content/classify.js';
+
+/**
+ * A post as `innerText` gives it: screen-reader prefix, optional header, author
+ * block, then the post.
+ *
+ * @param {{header?: string|null, author?: string, degree?: string,
+ *   headline?: string, body?: string, prefix?: boolean, inline?: boolean,
+ *   twice?: boolean}} opts
+ */
+function post(opts = {}) {
+  const {
+    header = null,
+    author = 'Marcus Webb',
+    degree = '• 2nd',
+    headline = 'Head of Data at Northwind',
+    body = 'A thought about the thing.\n\n12 reactions · 3 comments',
+    prefix = true,
+    inline = false,
+    twice = false,
+  } = opts;
+
+  const rows = [];
+  if (prefix) rows.push('Feed post');
+  if (header) rows.push(header);
+  if (inline) {
+    rows.push(`${author} ${degree}`);
+  } else {
+    rows.push(author);
+    if (twice) rows.push(author);
+    rows.push(degree);
+  }
+  rows.push(headline, '3h •', body);
+  return rows.join('\n');
+}
+
+/* ================================================================== */
+/*  Every header form                                                 */
+/* ================================================================== */
+
+describe('the headers LinkedIn puts above other people’s posts', () => {
+  const reactions = [
+    'Priya Raman likes this',
+    'Priya Raman celebrates this',
+    'Priya Raman loves this',
+    'Priya Raman supports this',
+    'Priya Raman finds this insightful',
+    'Priya Raman finds this funny',
+    'Priya Raman and 3 others like this',
+    'Priya Raman and 12 others celebrate this',
+  ];
+  for (const header of reactions) {
+    it(`reads "${header}" as a reaction`, () => {
+      expect(classifyPost(post({ header }))).toBe(QUIET_CATEGORY.REACTION);
+      expect(extractHeader(post({ header }))).toBe(header);
+    });
+  }
+
+  const comments = [
+    'Priya Raman commented',
+    'Priya Raman commented on this',
+    'Priya Raman and 3 others commented',
+    'Priya Raman replied to this',
+  ];
+  for (const header of comments) {
+    it(`reads "${header}" as a comment`, () => {
+      expect(classifyPost(post({ header }))).toBe(QUIET_CATEGORY.COMMENT);
+    });
+  }
+
+  it('reads a repost', () => {
+    expect(classifyPost(post({ header: 'Priya Raman reposted this' }))).toBe(QUIET_CATEGORY.REPOST);
+  });
+
+  it('reads "Followed by <Name>" — somebody a connection follows', () => {
+    expect(classifyPost(post({ header: 'Followed by Priya Raman' }))).toBe(
+      QUIET_CATEGORY.FOLLOWED_BY,
+    );
+  });
+
+  it('reads a suggestion', () => {
+    expect(classifyPost(post({ header: 'Suggested' }))).toBe(QUIET_CATEGORY.SUGGESTED);
+    expect(classifyPost(post({ header: 'Suggested for you' }))).toBe(QUIET_CATEGORY.SUGGESTED);
+  });
+
+  it('reads an ad', () => {
+    expect(
+      classifyPost(post({ header: 'Promoted', author: 'Northwind Analytics', degree: '• Following' })),
+    ).toBe(QUIET_CATEGORY.PROMOTED);
+  });
+
+  const other = [
+    'Priya Raman was mentioned in this post',
+    'Northwind Analytics is hiring',
+    'Northwind Analytics posted a job',
+    'Priya Raman shared this',
+    'Priya Raman is attending Data Summit 2026',
+    'Priya Raman follows Northwind Analytics',
+  ];
+  for (const header of other) {
+    it(`reads "${header}" as other activity`, () => {
+      expect(classifyPost(post({ header }))).toBe(QUIET_CATEGORY.OTHER_ACTIVITY);
+    });
+  }
+
+  it('reads a post from somebody you actually follow as direct', () => {
+    expect(classifyPost(post())).toBe(QUIET_CATEGORY.DIRECT);
+    expect(extractHeader(post())).toBe(null);
+  });
+
+  it('reads a page you follow as direct', () => {
+    expect(classifyPost(post({ author: 'Northwind Analytics', degree: '• Following' }))).toBe(
+      QUIET_CATEGORY.DIRECT,
+    );
+  });
+
+  it('reads every degree marker as an author block', () => {
+    for (const degree of ['• 1st', '• 2nd', '• 3rd', '• 3rd+', '• Following']) {
+      expect(classifyPost(post({ degree }))).toBe(QUIET_CATEGORY.DIRECT);
+      expect(classifyPost(post({ degree, header: 'Priya Raman likes this' }))).toBe(
+        QUIET_CATEGORY.REACTION,
+      );
+    }
+  });
+});
+
+/* ================================================================== */
+/*  Layout                                                            */
+/* ================================================================== */
+
+describe('the shapes innerText comes in', () => {
+  it('works with the "Feed post" prefix and without it', () => {
+    expect(classifyPost(post({ header: 'Priya Raman likes this', prefix: false }))).toBe(
+      QUIET_CATEGORY.REACTION,
+    );
+    expect(classifyPost(post({ prefix: false }))).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('strips a numbered prefix too', () => {
+    const text = ['Feed post number 4', 'Priya Raman likes this', 'Marcus Webb', '• 2nd'].join('\n');
+    expect(lines(text)[0]).toBe('Priya Raman likes this');
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.REACTION);
+  });
+
+  it('works when the name and the degree share a line', () => {
+    expect(classifyPost(post({ inline: true }))).toBe(QUIET_CATEGORY.DIRECT);
+    expect(classifyPost(post({ inline: true, header: 'Priya Raman reposted this' }))).toBe(
+      QUIET_CATEGORY.REPOST,
+    );
+  });
+
+  it('works when LinkedIn prints the author’s name twice', () => {
+    expect(classifyPost(post({ twice: true }))).toBe(QUIET_CATEGORY.DIRECT);
+    expect(classifyPost(post({ twice: true, header: 'Priya Raman commented' }))).toBe(
+      QUIET_CATEGORY.COMMENT,
+    );
+  });
+
+  it('finds the author block, or says there is none', () => {
+    expect(authorBlockIndex(lines(post()))).toBe(1);
+    expect(authorBlockIndex(lines('Start a post\nShare a photo'))).toBe(-1);
+  });
+
+  it('ignores blank lines and runs of spaces', () => {
+    const text = '\n Feed post \n\n  Priya Raman   likes this  \n\nMarcus Webb\n• 2nd\n\n';
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.REACTION);
+  });
+
+  it('is unbothered by nothing at all', () => {
+    for (const nothing of ['', '   ', null, undefined]) {
+      expect(classifyPost(nothing)).toBe(QUIET_CATEGORY.UNKNOWN);
+      expect(extractHeader(nothing)).toBe(null);
+    }
+  });
+});
+
+/* ================================================================== */
+/*  The things it must not hide                                       */
+/* ================================================================== */
+
+describe('what it refuses to touch', () => {
+  it('does not read a person called "Loves Dale" as a reaction', () => {
+    expect(classifyPost(post({ author: 'Loves Dale' }))).toBe(QUIET_CATEGORY.DIRECT);
+    expect(classifyPost(post({ author: 'Loves Dale', twice: true }))).toBe(QUIET_CATEGORY.DIRECT);
+    expect(classifyPost(post({ author: 'Loves Dale', inline: true }))).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('still classifies a post by "Loves Dale" that somebody liked', () => {
+    expect(classifyPost(post({ author: 'Loves Dale', header: 'Priya Raman likes this' }))).toBe(
+      QUIET_CATEGORY.REACTION,
+    );
+  });
+
+  it('does not read a company called "Everyone Loves This" as a reaction', () => {
+    const text = post({ author: 'Everyone Loves This', degree: '• Following', twice: true });
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('does not read "Promoted" in the middle of a post as an ad', () => {
+    const text = post({ body: 'We just Promoted three people. Promoted, not hired.' });
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+    expect(extractHeader(text)).toBe(null);
+  });
+
+  it('does not read "Suggested" in the middle of a post as a suggestion', () => {
+    expect(classifyPost(post({ body: 'Suggested reading for the weekend:' }))).toBe(
+      QUIET_CATEGORY.DIRECT,
+    );
+  });
+
+  it('does not read "3 comments" under a post as somebody having commented', () => {
+    const text = post({ body: 'A thought.\n41 reactions · 3 comments · 2 reposts' });
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+  });
+
+  it('does not read a headline containing "is hiring" as an activity header', () => {
+    expect(classifyPost(post({ headline: 'Northwind is hiring — DM me' }))).toBe(
+      QUIET_CATEGORY.DIRECT,
+    );
+  });
+
+  it('leaves the draft box alone', () => {
+    expect(classifyPost('Draft: the thing I never posted\nSaved 2d ago')).toBe(
+      QUIET_CATEGORY.UNKNOWN,
+    );
+    expect(classifyPost('Draft')).toBe(QUIET_CATEGORY.UNKNOWN);
+  });
+
+  it('leaves the "Start a post" card alone', () => {
+    expect(classifyPost('Start a post\nVideo\nPhoto\nWrite article')).toBe(QUIET_CATEGORY.UNKNOWN);
+  });
+
+  it('leaves any list item without an author block alone', () => {
+    const items = [
+      'Add to your feed\nNorthwind Analytics\nFollow',
+      'Show more feed updates',
+      'Sort by: Top\nRecent',
+      'Priya Raman likes this', // a header and nothing under it is not a post
+    ];
+    for (const text of items) expect(classifyPost(text)).toBe(QUIET_CATEGORY.UNKNOWN);
+  });
+
+  it('shows, rather than hides, a header form nobody has taught it', () => {
+    const text = post({ header: 'Priya Raman has a new profile photo' });
+    expect(classifyPost(text)).toBe(QUIET_CATEGORY.DIRECT);
+    expect(extractHeader(text)).toBe(null);
+  });
+});

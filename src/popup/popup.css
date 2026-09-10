@@ -288,6 +288,31 @@ a {
   padding-left: 19px;
 }
 
+/* A tick box the master switch has turned off is still readable, and still
+   remembers what it was set to — it simply has nothing to act on. */
+.checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.checkbox:disabled + .check-label {
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Quiet feed                                                         */
+/* ------------------------------------------------------------------ */
+
+/* The three category boxes read as belonging to the master switch above
+   them, so they are stepped in under it. */
+.card--quiet .card-body > .check + .check {
+  padding-left: 19px;
+}
+
+.card--quiet [data-testid='quiet-count'] {
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Buttons                                                            */
 /* ------------------------------------------------------------------ */

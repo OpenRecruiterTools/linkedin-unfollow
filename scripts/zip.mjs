@@ -51,8 +51,8 @@ const title = `LinkedIn Unfollow ${version}`;
 const readme = `${title}
 ${'='.repeat(title.length)}
 
-Unfollow everyone in your LinkedIn feed, at human pace, in your own browser.
-Free, open source, no account, no server, no telemetry.
+Unfollow everyone in your LinkedIn feed, at human pace, in your own browser,
+then keep it quiet. Free, open source, no account, no server, no telemetry.
 
 Install
 -------
@@ -91,6 +91,29 @@ While it runs it sends the same unfollow request the LinkedIn page sends, one
 person at a time (three in fast mode), roughly one a second. "Stop" ends it
 after the person it is on. If LinkedIn answers 429, 451, 401 or 403 the run
 stops on the spot and nothing is retried.
+
+Quiet feed
+----------
+Unfollowing everybody does not empty the feed. LinkedIn refills it with what
+the people you are still connected to have been doing - the posts they liked,
+commented on and reposted - plus its suggestions and its ads. None of that is
+anything you subscribed to, and there is no setting on the site for it.
+
+So the popup has a second card, above the unfollow one, with a master switch
+and three tick boxes: network activity, promoted, suggested. All four are on to
+begin with. On the feed itself, each post that arrives with a header line above
+the author ("Priya likes this", "Priya reposted this", "Suggested",
+"Promoted") is hidden, and a single grey line at the top says how many went and
+offers "Show them" to put them all back for that page load.
+
+Posts from people you actually follow have no such header, and they stay. So
+does anything it cannot read confidently: the composer, the draft box, the
+"Start a post" card, and any header form it has not been taught. It hides only
+what it positively recognised.
+
+Nothing is deleted and nothing is sent. It adds one CSS class to posts already
+in your browser; LinkedIn is not told, and the count in the popup is a number
+in your own browser's storage.
 
 Before you use it
 -----------------
@@ -140,7 +163,14 @@ const entries = zip.getEntries().length;
 console.log(`Wrote ${relative(root, outFile).split(sep).join('/')}`);
 console.log(`  and ${relative(root, latestFile).split(sep).join('/')} (fixed name for the site)`);
 console.log(`  ${entries} entries, ${(bytes / 1024).toFixed(0)} KB`);
-for (const required of ['manifest.json', 'README.txt', 'src/background.js']) {
+for (const required of [
+  'manifest.json',
+  'README.txt',
+  'src/background.js',
+  'src/content/boot.js',
+  'src/content/quiet-feed.js',
+  'src/content/quiet-feed.css',
+]) {
   if (!zip.getEntry(required)) throw new Error(`${required} is missing from the zip`);
 }
 const shipped = zip.getEntries().map((e) => e.entryName);
